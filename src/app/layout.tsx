@@ -6,10 +6,11 @@ import {
 } from "@mantine/core";
 import theme from "./theme";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/auth-context";
 
 export const metadata: Metadata = {
-  title: "Next App Mantine Tailwind Template",
-  description: "Next App Mantine Tailwind Template",
+  title: "Crypto Data Viewer",
+  description: "A tool to view crypto data",
 };
 
 export default function RootLayout({
@@ -23,7 +24,9 @@ export default function RootLayout({
         <ColorSchemeScript />
       </head>
       <body className="antialiased">
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        <MantineProvider theme={theme}>
+          <AuthProvider>{children}</AuthProvider>
+        </MantineProvider>
       </body>
     </html>
   );
