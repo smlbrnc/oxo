@@ -12,13 +12,14 @@ import {
   Paper,
   Group,
   Badge,
-  SimpleGrid,
   Avatar,
+  Grid,
+  Button,
 } from "@mantine/core";
 import { IconArrowUpRight, IconArrowDownRight } from "@tabler/icons-react";
 import { mockCryptoData } from "@/lib/mock-data";
 import { getAnalysisData } from "@/lib/analysis-data";
-import { getFavoritesCoins, formatCurrency, formatLargeNumber, formatPercentage, formatNumber } from "@/lib/utils";
+import { getFavoritesCoins, formatCurrency, formatPercentage, formatNumber } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useState, useEffect } from "react";
 import { CryptoCoin } from "@/lib/types";
@@ -113,7 +114,7 @@ export default function AnalizPage() {
           <Stack gap="xl">
             <Title order={1}>Analiz</Title>
 
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
+            <Stack gap="md">
               {favorites.map((coin) => {
                 const isPositive = coin.price_change_percentage_24h >= 0;
                 const changeColor = isPositive ? "green" : "red";
@@ -122,165 +123,174 @@ export default function AnalizPage() {
                 return (
                   <Paper
                     key={coin.id}
-                    p="lg"
+                    p="md"
                     withBorder
                     radius="md"
-                    className="h-full"
                   >
-                    <Stack gap="lg">
-                      {/* Header */}
-                      <Group justify="space-between" align="flex-start" wrap="nowrap">
-                        <Group gap="sm" wrap="nowrap">
+                    <Grid gutter="md">
+                      {/* Grid 1: Coin Info */}
+                      <Grid.Col span={{ base: 12, sm: 3 }}>
+                        <Group gap="md" wrap="nowrap">
                           <Avatar src={coin.image} alt={coin.name} size={50} />
-                          <Stack gap={2}>
-                            <Text fw={700} size="md" lineClamp={1}>
-                              {coin.name}
+                          <Stack gap={4}>
+                            <Group gap="sm" align="center">
+                              <Text fw={700} size="md">
+                                {coin.name}
+                              </Text>
+                              <Badge variant="light" tt="uppercase" size="sm">
+                                {coin.symbol}
+                              </Badge>
+                              <Badge
+                                color={changeColor}
+                                variant="light"
+                                size="sm"
+                                leftSection={
+                                  isPositive ? (
+                                    <IconArrowUpRight size={12} />
+                                  ) : (
+                                    <IconArrowDownRight size={12} />
+                                  )
+                                }
+                              >
+                                {formatPercentage(coin.price_change_percentage_24h)}
+                              </Badge>
+                            </Group>
+                            <Text fw={700} size="xl">
+                              {analysis?.price ? formatCurrency(analysis.price.value) : formatCurrency(coin.current_price)}
                             </Text>
-                            <Badge variant="light" tt="uppercase" size="sm" w="fit-content">
-                              {coin.symbol}
-                            </Badge>
+                            {analysis && (
+                              <Group gap={4} align="center">
+                                <Text size="xs" c="dimmed" fw={500}>
+                                  Hacim:
+                                </Text>
+                                <Text fw={600} size="sm">
+                                  {formatNumber(analysis.candle.volume, 2)}
+                                </Text>
+                              </Group>
+                            )}
                           </Stack>
                         </Group>
-                        <Badge
-                          color={changeColor}
-                          variant="light"
-                          size="md"
-                          leftSection={
-                            isPositive ? (
-                              <IconArrowUpRight size={12} />
-                            ) : (
-                              <IconArrowDownRight size={12} />
-                            )
-                          }
-                        >
-                          {formatPercentage(coin.price_change_percentage_24h)}
-                        </Badge>
-                      </Group>
+                      </Grid.Col>
 
-                      {/* Price */}
-                      <Stack gap={2}>
-                        <Text size="xs" c="dimmed" fw={500}>
-                          Fiyat
-                        </Text>
-                        <Text fw={700} size="xl">
-                          {analysis?.price ? formatCurrency(analysis.price.value) : formatCurrency(coin.current_price)}
-                        </Text>
-                      </Stack>
+                      {/* Grid 2: Analysis Metrics Container */}
+                      <Grid.Col span={{ base: 12, sm: 4 }}>
+                        {analysis && (
+                          <Paper p="md" withBorder radius="md" style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                            <Group gap="xl" justify="space-between" wrap="nowrap" style={{ width: '100%' }}>
+                              {/* RSI */}
+                              <Stack gap={2} align="center" style={{ flex: 1 }}>
+                                <Text size="xs" c="dimmed" fw={500}>
+                                  RSI
+                                </Text>
+                                <Text fw={600} size="sm">
+                                  {formatNumber(analysis.rsi.value, 2)}
+                                </Text>
+                              </Stack>
 
-                      {/* Analysis Data */}
-                      {analysis && (
-                        <>
-                          {/* RSI */}
-                          <Stack gap={2}>
-                            <Text size="xs" c="dimmed" fw={500}>
-                              RSI
-                            </Text>
-                            <Text fw={600} size="sm">
-                              {formatNumber(analysis.rsi.value, 2)}
-                            </Text>
-                          </Stack>
+                              {/* EMA */}
+                              <Stack gap={2} align="center" style={{ flex: 1 }}>
+                                <Text size="xs" c="dimmed" fw={500}>
+                                  EMA
+                                </Text>
+                                <Text fw={600} size="sm">
+                                  {formatCurrency(analysis.ema.value)}
+                                </Text>
+                              </Stack>
 
-                          {/* EMA */}
-                          <Stack gap={2}>
-                            <Text size="xs" c="dimmed" fw={500}>
-                              EMA
-                            </Text>
-                            <Text fw={600} size="sm">
-                              {formatCurrency(analysis.ema.value)}
-                            </Text>
-                          </Stack>
-
-                          {/* Movement Index */}
-                          <Stack gap={2}>
-                            <Text size="xs" c="dimmed" fw={500}>
-                              Movement Index
-                            </Text>
-                            <SimpleGrid cols={3} spacing="xs">
-                              <Stack gap={1}>
-                                <Text size="xs" c="dimmed">
+                              {/* ADX */}
+                              <Stack gap={2} align="center" style={{ flex: 1 }}>
+                                <Text size="xs" c="dimmed" fw={500}>
                                   ADX
                                 </Text>
-                                <Text fw={600} size="xs">
+                                <Text fw={600} size="sm">
                                   {formatNumber(analysis.movementIndex.adx, 2)}
                                 </Text>
                               </Stack>
-                              <Stack gap={1}>
-                                <Text size="xs" c="dimmed">
+
+                              {/* PDI */}
+                              <Stack gap={2} align="center" style={{ flex: 1 }}>
+                                <Text size="xs" c="dimmed" fw={500}>
                                   PDI
                                 </Text>
-                                <Text fw={600} size="xs">
+                                <Text fw={600} size="sm">
                                   {formatNumber(analysis.movementIndex.pdi, 2)}
                                 </Text>
                               </Stack>
-                              <Stack gap={1}>
-                                <Text size="xs" c="dimmed">
+
+                              {/* MDI */}
+                              <Stack gap={2} align="center" style={{ flex: 1 }}>
+                                <Text size="xs" c="dimmed" fw={500}>
                                   MDI
                                 </Text>
-                                <Text fw={600} size="xs">
+                                <Text fw={600} size="sm">
                                   {formatNumber(analysis.movementIndex.mdi, 2)}
                                 </Text>
                               </Stack>
-                            </SimpleGrid>
-                          </Stack>
+                            </Group>
+                          </Paper>
+                        )}
+                      </Grid.Col>
 
-                          {/* Candle Data */}
-                          <Stack gap={2}>
+                      {/* Grid 3: Candle Data */}
+                      <Grid.Col span={{ base: 12, sm: 3 }}>
+                        {analysis && (
+                          <Stack gap={2} align="center" style={{ height: '100%', justifyContent: 'center' }}>
                             <Text size="xs" c="dimmed" fw={500}>
                               Candle
                             </Text>
-                            <SimpleGrid cols={2} spacing="xs">
-                              <Stack gap={1}>
+                            <Group gap="md">
+                              <Stack gap={2} align="center">
                                 <Text size="xs" c="dimmed">
                                   Açılış
                                 </Text>
                                 <Text fw={600} size="xs">
                                   {formatCurrency(analysis.candle.open)}
                                 </Text>
-                              </Stack>
-                              <Stack gap={1}>
-                                <Text size="xs" c="dimmed">
-                                  Kapanış
-                                </Text>
-                                <Text fw={600} size="xs">
-                                  {formatCurrency(analysis.candle.close)}
-                                </Text>
-                              </Stack>
-                              <Stack gap={1}>
-                                <Text size="xs" c="dimmed">
+                                <Text size="xs" c="dimmed" mt={4}>
                                   Yüksek
                                 </Text>
                                 <Text fw={600} size="xs" c="green">
                                   {formatCurrency(analysis.candle.high)}
                                 </Text>
                               </Stack>
-                              <Stack gap={1}>
+                              <Stack gap={2} align="center">
                                 <Text size="xs" c="dimmed">
+                                  Kapanış
+                                </Text>
+                                <Text fw={600} size="xs">
+                                  {formatCurrency(analysis.candle.close)}
+                                </Text>
+                                <Text size="xs" c="dimmed" mt={4}>
                                   Düşük
                                 </Text>
                                 <Text fw={600} size="xs" c="red">
                                   {formatCurrency(analysis.candle.low)}
                                 </Text>
                               </Stack>
-                            </SimpleGrid>
-                            <Stack gap={1} mt="xs">
-                              <Text size="xs" c="dimmed">
-                                Hacim
-                              </Text>
-                              <Text fw={600} size="xs">
-                                {formatNumber(analysis.candle.volume, 2)}
-                              </Text>
-                            </Stack>
-                            <Text size="xs" c="dimmed" mt="xs">
+                            </Group>
+                            <Text size="xs" c="dimmed" mt="xs" ta="center">
                               {analysis.candle.timestampHuman}
                             </Text>
                           </Stack>
-                        </>
-                      )}
-                    </Stack>
+                        )}
+                      </Grid.Col>
+
+                      {/* Grid 4: Buttons */}
+                      <Grid.Col span={{ base: 12, sm: 2 }}>
+                        <Stack gap="sm" align="center" justify="center" style={{ height: '100%' }}>
+                          <Button variant="light" size="sm" fullWidth>
+                            Detay
+                          </Button>
+                          <Button variant="filled" size="sm" fullWidth>
+                            Analiz Yap
+                          </Button>
+                        </Stack>
+                      </Grid.Col>
+                    </Grid>
                   </Paper>
                 );
               })}
-            </SimpleGrid>
+            </Stack>
 
             <Footer />
           </Stack>

@@ -76,3 +76,17 @@ export interface AnalysisData {
   rsi: RSI;
   candle: Candle;
 }
+
+export type ColorMode = "light" | "dark" | "auto";
+
+export interface UserSettings {
+  id?: string;
+  user_id: string;
+  color_mode: ColorMode;
+  notifications_enabled: boolean;
+  email_notifications: boolean;
+  price_alerts: boolean;
+  newsletter: boolean;
+  two_factor_auth: boolean;
+  updated_at?: string;
+}

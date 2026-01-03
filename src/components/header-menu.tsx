@@ -126,7 +126,11 @@ export function HeaderMenu() {
                       </Menu.Item>
 
                       <Menu.Label>Ayarlar</Menu.Label>
-                      <Menu.Item leftSection={<IconSettings size={16} stroke={1.5} />}>
+                      <Menu.Item
+                        leftSection={<IconSettings size={16} stroke={1.5} />}
+                        component={Link}
+                        href="/settings"
+                      >
                         Hesap Ayarları
                       </Menu.Item>
                       <Menu.Item
@@ -264,8 +268,11 @@ export function HeaderMenu() {
 
                   <Stack gap="xs">
                     <NavLink
+                      component={Link}
+                      href="/settings"
                       label="Hesap Ayarları"
                       leftSection={<IconSettings size={16} />}
+                      active={pathname === "/settings"}
                       onClick={toggle}
                     />
                     <NavLink

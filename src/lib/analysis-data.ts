@@ -25,7 +25,6 @@ function generateAnalysisData(price: number): AnalysisData {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-        weekday: "long",
       }) + " UTC",
       timestamp: Math.floor(Date.now() / 1000),
       open: price * (0.98 + Math.random() * 0.04),
@@ -55,7 +54,7 @@ export const mockAnalysisData: Record<string, AnalysisData> = {
       value: 65.73211579249397,
     },
     candle: {
-      timestampHuman: "2021-01-14 15:00:00 (Thursday) UTC",
+      timestampHuman: "2021-01-14 15:00:00 UTC",
       timestamp: 1610636400,
       open: 39577.53,
       high: 39666,
