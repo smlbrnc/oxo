@@ -25,7 +25,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { getAnalysisData } from "@/lib/analysis-data";
 import { getFavoritesCoins, formatCurrency, formatLargeNumber, formatNumber } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useState, useEffect, useRef } from "react";
@@ -328,6 +327,21 @@ export default function AnalizPage() {
     setModalPivotError(null);
   };
 
+  // Helper: Update coin indicators state
+  const updateCoinIndicator = (
+    coinId: string,
+    key: keyof typeof coinIndicators[string],
+    value: typeof coinIndicators[string][keyof typeof coinIndicators[string]]
+  ) => {
+    setCoinIndicators(prev => ({
+      ...prev,
+      [coinId]: {
+        ...prev[coinId],
+        [key]: value,
+      },
+    }));
+  };
+
   // Helper: Populate indicators from cache data
   const populateIndicatorsFromCache = (
     coin: CryptoCoin,
@@ -335,83 +349,71 @@ export default function AnalizPage() {
     strategy: "swing" | "scalp"
   ) => {
     if (strategy === "swing") {
-      setMaValue(cachedData.ma as number | null);
-      setModalAtrValue(cachedData.atr as number | null);
-      setModalRsiValue(cachedData.rsi as number | null);
-      setModalAdxValue(cachedData.adx as number | null);
-      if (cachedData.fib_value !== null && cachedData.fib_value !== undefined) {
-        setModalFibValue({
-          value: cachedData.fib_value as number,
-          trend: (cachedData.fib_trend as string) || "N/A",
-          startPrice: (cachedData.fib_start_price as number) || 0,
-          endPrice: (cachedData.fib_end_price as number) || 0,
-        });
+      const ma = cachedData.ma as number | null;
+      const atr = cachedData.atr as number | null;
+      const rsi = cachedData.rsi as number | null;
+      const adx = cachedData.adx as number | null;
+      
+      setMaValue(ma);
+      setModalAtrValue(atr);
+      setModalRsiValue(rsi);
+      setModalAdxValue(adx);
+      
+      const fib = cachedData.fib_value !== null && cachedData.fib_value !== undefined ? {
+        value: cachedData.fib_value as number,
+        trend: (cachedData.fib_trend as string) || "N/A",
+        startPrice: (cachedData.fib_start_price as number) || 0,
+        endPrice: (cachedData.fib_end_price as number) || 0,
+      } : null;
+      
+      if (fib) {
+        setModalFibValue(fib);
       }
       
       // Update coin indicators state
-      setCoinIndicators(prev => ({
-        ...prev,
-        [coin.id]: {
-          ...prev[coin.id],
-          ma: cachedData.ma as number | null,
-          atr: cachedData.atr as number | null,
-          rsi: cachedData.rsi as number | null,
-          adx: cachedData.adx as number | null,
-          fib: cachedData.fib_value !== null && cachedData.fib_value !== undefined ? {
-            value: cachedData.fib_value as number,
-            trend: (cachedData.fib_trend as string) || "N/A",
-            startPrice: (cachedData.fib_start_price as number) || 0,
-            endPrice: (cachedData.fib_end_price as number) || 0,
-          } : null,
-        },
-      }));
+      updateCoinIndicator(coin.id, "ma", ma);
+      updateCoinIndicator(coin.id, "atr", atr);
+      updateCoinIndicator(coin.id, "rsi", rsi);
+      updateCoinIndicator(coin.id, "adx", adx);
+      updateCoinIndicator(coin.id, "fib", fib);
     } else {
-      setModalAtrValue(cachedData.atr as number | null);
-      setModalVwapValue(cachedData.vwap as number | null);
-      setModalRsiValue(cachedData.rsi as number | null);
-      if (cachedData.bbands_upper !== null && cachedData.bbands_upper !== undefined) {
-        setModalBbandsValue({
-          valueUpperBand: cachedData.bbands_upper as number,
-          valueMiddleBand: cachedData.bbands_middle as number,
-          valueLowerBand: cachedData.bbands_lower as number,
-        });
+      const atr = cachedData.atr as number | null;
+      const vwap = cachedData.vwap as number | null;
+      const rsi = cachedData.rsi as number | null;
+      
+      setModalAtrValue(atr);
+      setModalVwapValue(vwap);
+      setModalRsiValue(rsi);
+      
+      const bbands = cachedData.bbands_upper !== null && cachedData.bbands_upper !== undefined ? {
+        valueUpperBand: cachedData.bbands_upper as number,
+        valueMiddleBand: cachedData.bbands_middle as number,
+        valueLowerBand: cachedData.bbands_lower as number,
+      } : null;
+      
+      const pivot = cachedData.pivot_p !== null && cachedData.pivot_p !== undefined ? {
+        r3: cachedData.pivot_r3 as number,
+        r2: cachedData.pivot_r2 as number,
+        r1: cachedData.pivot_r1 as number,
+        p: cachedData.pivot_p as number,
+        s1: cachedData.pivot_s1 as number,
+        s2: cachedData.pivot_s2 as number,
+        s3: cachedData.pivot_s3 as number,
+      } : null;
+      
+      if (bbands) {
+        setModalBbandsValue(bbands);
       }
-      if (cachedData.pivot_p !== null && cachedData.pivot_p !== undefined) {
-        setModalPivotValue({
-          r3: cachedData.pivot_r3 as number,
-          r2: cachedData.pivot_r2 as number,
-          r1: cachedData.pivot_r1 as number,
-          p: cachedData.pivot_p as number,
-          s1: cachedData.pivot_s1 as number,
-          s2: cachedData.pivot_s2 as number,
-          s3: cachedData.pivot_s3 as number,
-        });
+      if (pivot) {
+        setModalPivotValue(pivot);
       }
       
       // Update coin indicators state
-      setCoinIndicators(prev => ({
-        ...prev,
-        [coin.id]: {
-          ...prev[coin.id],
-          atr: cachedData.atr as number | null,
-          vwap: cachedData.vwap as number | null,
-          rsi: cachedData.rsi as number | null,
-          bbands: cachedData.bbands_upper !== null && cachedData.bbands_upper !== undefined ? {
-            valueUpperBand: cachedData.bbands_upper as number,
-            valueMiddleBand: cachedData.bbands_middle as number,
-            valueLowerBand: cachedData.bbands_lower as number,
-          } : null,
-          pivot: cachedData.pivot_p !== null && cachedData.pivot_p !== undefined ? {
-            r3: cachedData.pivot_r3 as number,
-            r2: cachedData.pivot_r2 as number,
-            r1: cachedData.pivot_r1 as number,
-            p: cachedData.pivot_p as number,
-            s1: cachedData.pivot_s1 as number,
-            s2: cachedData.pivot_s2 as number,
-            s3: cachedData.pivot_s3 as number,
-          } : null,
-        },
-      }));
+      updateCoinIndicator(coin.id, "atr", atr);
+      updateCoinIndicator(coin.id, "vwap", vwap);
+      updateCoinIndicator(coin.id, "rsi", rsi);
+      updateCoinIndicator(coin.id, "bbands", bbands);
+      updateCoinIndicator(coin.id, "pivot", pivot);
     }
   };
 
@@ -462,13 +464,7 @@ export default function AnalizPage() {
         setError(null);
         // Coin kartı için de kaydet
         if (indicatorKey) {
-          setCoinIndicators(prev => ({
-            ...prev,
-            [coin.id]: {
-              ...prev[coin.id],
-              [indicatorKey]: value,
-            },
-          }));
+          updateCoinIndicator(coin.id, indicatorKey, value);
         }
       } catch (error) {
         console.error(`Error fetching ${endpoint}:`, error);
@@ -494,13 +490,7 @@ export default function AnalizPage() {
           setModalFibLoading,
           (value) => {
             setModalFibValue(value);
-            setCoinIndicators(prev => ({
-              ...prev,
-              [coin.id]: {
-                ...prev[coin.id],
-                fib: value,
-              },
-            }));
+            updateCoinIndicator(coin.id, "fib", value);
           },
           setModalFibError,
           "Fibonacci değeri alınırken bir hata oluştu"
@@ -517,13 +507,7 @@ export default function AnalizPage() {
           setModalBbandsLoading,
           (value) => {
             setModalBbandsValue(value);
-            setCoinIndicators(prev => ({
-              ...prev,
-              [coin.id]: {
-                ...prev[coin.id],
-                bbands: value,
-              },
-            }));
+            updateCoinIndicator(coin.id, "bbands", value);
           },
           setModalBbandsError,
           "Bollinger Bands değeri alınırken bir hata oluştu"
@@ -533,13 +517,7 @@ export default function AnalizPage() {
           setModalPivotLoading,
           (value) => {
             setModalPivotValue(value);
-            setCoinIndicators(prev => ({
-              ...prev,
-              [coin.id]: {
-                ...prev[coin.id],
-                pivot: value,
-              },
-            }));
+            updateCoinIndicator(coin.id, "pivot", value);
           },
           setModalPivotError,
           "Pivot Points değeri alınırken bir hata oluştu"
@@ -623,7 +601,6 @@ export default function AnalizPage() {
 
             <Stack gap="md">
               {favorites.map((coin) => {
-                const analysis = getAnalysisData(coin.id, coin.current_price);
                 const indicators = coinIndicators[coin.id] || {};
 
                 return (
@@ -648,7 +625,7 @@ export default function AnalizPage() {
                               </Badge>
                             </Group>
                             <Text fw={700} size="xl">
-                              {analysis?.price ? formatCurrency(analysis.price.value) : formatCurrency(coin.current_price)}
+                              {formatCurrency(coin.current_price)}
                             </Text>
                             <Group gap={4} align="center">
                               <Text size="xs" c="dimmed" fw={500}>
@@ -664,9 +641,8 @@ export default function AnalizPage() {
 
                       {/* Grid 2: Analysis Metrics Container */}
                       <Grid.Col span={{ base: 12, sm: 7 }}>
-                        {analysis && (
-                          <Paper p="md" withBorder radius="md" style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-                            {!coinIndicators[coin.id] ? (
+                        <Paper p="md" withBorder radius="md" style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                          {!coinIndicators[coin.id] ? (
                               <Stack gap={4} style={{ width: '100%' }}>
                                 <Text fw={600} size="sm">
                                   Sistem Nasıl Çalışır?
@@ -966,7 +942,7 @@ export default function AnalizPage() {
                             size="sm"
                             fullWidth
                             onClick={() => handleAnalyze(coin)}
-                            disabled={!analysis || analyzingCoinId === coin.id || !coinIndicators[coin.id]}
+                            disabled={analyzingCoinId === coin.id || !coinIndicators[coin.id]}
                             leftSection={analyzingCoinId === coin.id ? <Loader size="xs" /> : null}
                           >
                             {analyzingCoinId === coin.id ? "Analiz Yapılıyor..." : "Analiz Yap"}

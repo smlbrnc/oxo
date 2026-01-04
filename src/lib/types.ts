@@ -41,42 +41,6 @@ export interface PriceHistory {
   price: number;
 }
 
-export interface MovementIndex {
-  adx: number;
-  pdi: number;
-  mdi: number;
-}
-
-export interface EMA {
-  value: number;
-}
-
-export interface Price {
-  value: number;
-}
-
-export interface RSI {
-  value: number;
-}
-
-export interface Candle {
-  timestampHuman: string;
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
-
-export interface AnalysisData {
-  movementIndex: MovementIndex;
-  ema: EMA;
-  price: Price;
-  rsi: RSI;
-  candle: Candle;
-}
-
 export type ColorMode = "light" | "dark" | "auto";
 
 export interface UserSettings {

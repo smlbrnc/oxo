@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { createChart, ColorType, CandlestickSeries, ISeriesApi, Time } from "lightweight-charts";
 import { useMantineColorScheme } from "@mantine/core";
 
