@@ -76,7 +76,7 @@ export default function Home() {
         }
       };
     }
-  }, [loadInitialData, coins.length]);
+  }, [loadInitialData, coins]);
 
   const filteredAndSortedCoins = useMemo(() => {
     let result = [...coins];
@@ -156,7 +156,7 @@ export default function Home() {
     if (pagination.active !== 1) {
       pagination.setPage(1);
     }
-  }, [searchQuery, filters, sortField, sortOrder]);
+  }, [searchQuery, filters, sortField, sortOrder, pagination]);
 
   // Mevcut sayfadaki coin'leri al
   const paginatedCoins = useMemo(() => {

@@ -172,7 +172,7 @@ function MarketPageContent() {
       return parseFloat(intervalTicker.priceChangePercent);
     }
     return ticker ? parseFloat(ticker.priceChangePercent) : 0;
-  }, [intervalTicker, ticker?.priceChangePercent]);
+  }, [intervalTicker, ticker]);
 
   // İstatistikler için kullanılacak ticker (interval varsa onu kullan, yoksa 24h ticker)
   const displayTicker = useMemo(() => {
@@ -188,19 +188,19 @@ function MarketPageContent() {
   }, [ticker]);
 
   // Favori durumunu yükle
+  const loadFavoriteStatus = useCallback(async () => {
+    if (!user?.id || !coinData?.id) return;
+    const favorite = await isFavorite(user.id, coinData.id);
+    setIsFav(favorite);
+  }, [user?.id, coinData?.id]);
+
   useEffect(() => {
     if (user?.id && coinData?.id) {
       loadFavoriteStatus();
     } else {
       setIsFav(false);
     }
-  }, [user?.id, coinData?.id]);
-
-  const loadFavoriteStatus = async () => {
-    if (!user?.id || !coinData?.id) return;
-    const favorite = await isFavorite(user.id, coinData.id);
-    setIsFav(favorite);
-  };
+  }, [user?.id, coinData?.id, loadFavoriteStatus]);
 
   const handleToggleFavorite = async () => {
     if (!user?.id || !coinData?.id) return;

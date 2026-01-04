@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { createChart, ColorType, CandlestickSeries, ISeriesApi, Time } from "lightweight-charts";
 import { useMantineColorScheme } from "@mantine/core";
 
@@ -17,13 +17,13 @@ export function CryptoChart({ symbol = "BTCUSDT", interval = "4h" }: CryptoChart
 
   // Tema renkleri
   const isDark = colorScheme === "dark";
-  const getChartColors = () => ({
+  const getChartColors = useCallback(() => ({
     background: isDark ? "#253248" : "#FFFFFF",
     text: isDark ? "#DDD" : "#333333",
     grid: isDark ? "#334158" : "#E0E0E0",
     upColor: "#26a69a",
     downColor: "#ef5350",
-  });
+  }), [isDark]);
 
   // Chart oluşturma ve veri yükleme
   useEffect(() => {
@@ -108,7 +108,7 @@ export function CryptoChart({ symbol = "BTCUSDT", interval = "4h" }: CryptoChart
       }
       seriesRef.current = null;
     };
-  }, [symbol, interval]);
+  }, [symbol, interval, getChartColors]);
 
   // Tema değiştiğinde renkleri güncelle
   useEffect(() => {
@@ -135,7 +135,7 @@ export function CryptoChart({ symbol = "BTCUSDT", interval = "4h" }: CryptoChart
       wickUpColor: chartColors.upColor,
       wickDownColor: chartColors.downColor,
     });
-  }, [isDark]);
+  }, [isDark, getChartColors]);
 
   return (
     <div

@@ -19,7 +19,7 @@ import {
 import { IconSun, IconMoonStars, IconCheck, IconX } from "@tabler/icons-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useMantineColorScheme } from "@mantine/core";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getOrCreateUserSettings, updateUserSettings } from "@/lib/supabase/settings";
 import { UserSettings, ColorMode } from "@/lib/types";
 
@@ -30,15 +30,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<UserSettings | null>(null);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadSettings();
-    } else {
-      setLoading(false);
-    }
-  }, [user?.id]);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     if (!user?.id) return;
 
     setLoading(true);
@@ -55,7 +47,15 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, setColorScheme]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadSettings();
+    } else {
+      setLoading(false);
+    }
+  }, [user?.id, loadSettings]);
 
   const handleColorModeChange = async (checked: boolean) => {
     if (!user?.id || !settings) return;

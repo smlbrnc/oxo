@@ -15,7 +15,7 @@ import Link from "next/link";
 import { CryptoCoin, SortField, SortOrder } from "@/lib/types";
 import { formatCurrency, formatLargeNumber, formatPercentage, getFavorites, toggleFavorite } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { symbolToBinancePair } from "@/lib/binance";
 
 interface CryptoTableProps {
@@ -30,6 +30,12 @@ export function CryptoTable({ coins, sortField, sortOrder, onSort }: CryptoTable
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loadingFavorites, setLoadingFavorites] = useState<Set<string>>(new Set());
 
+  const loadFavorites = useCallback(async () => {
+    if (!user?.id) return;
+    const favoriteIds = await getFavorites(user.id);
+    setFavorites(new Set(favoriteIds));
+  }, [user?.id]);
+
   // Load favorites when user changes
   useEffect(() => {
     if (user?.id) {
@@ -37,13 +43,7 @@ export function CryptoTable({ coins, sortField, sortOrder, onSort }: CryptoTable
     } else {
       setFavorites(new Set());
     }
-  }, [user?.id]);
-
-  const loadFavorites = async () => {
-    if (!user?.id) return;
-    const favoriteIds = await getFavorites(user.id);
-    setFavorites(new Set(favoriteIds));
-  };
+  }, [user?.id, loadFavorites]);
 
   const handleFavoriteClick = async (coinId: string, e: React.MouseEvent) => {
     e.preventDefault();

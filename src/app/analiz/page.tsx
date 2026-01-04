@@ -27,7 +27,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { getFavoritesCoins, formatCurrency, formatLargeNumber, formatNumber } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { CryptoCoin } from "@/lib/types";
 import { AnalysisRequest } from "@/lib/gemini";
 import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
@@ -114,16 +114,7 @@ export default function AnalizPage() {
     "Sonuçlar hazırlanıyor...",
   ];
 
-  useEffect(() => {
-    if (user?.id) {
-      loadFavorites();
-    } else {
-      setFavorites([]);
-      setLoading(false);
-    }
-  }, [user?.id]);
-
-  const loadFavorites = async () => {
+  const loadFavorites = useCallback(async () => {
     if (!user?.id) return;
     
     setLoading(true);
@@ -135,7 +126,16 @@ export default function AnalizPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadFavorites();
+    } else {
+      setFavorites([]);
+      setLoading(false);
+    }
+  }, [user?.id, loadFavorites]);
 
   // Setup WebSocket for real-time updates
   useEffect(() => {
@@ -182,7 +182,7 @@ export default function AnalizPage() {
         };
       }
     }
-  }, [favorites.length]);
+  }, [favorites]);
 
   // Rotate loading texts when analyzing
   useEffect(() => {

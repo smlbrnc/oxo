@@ -24,7 +24,7 @@ import {
 import { IconStarFilled, IconTrash, IconArrowUpRight, IconWallet } from "@tabler/icons-react";
 import { getFavoritesCoins, formatCurrency, formatLargeNumber, formatPercentage, removeFavorite } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { CryptoCoin } from "@/lib/types";
 
@@ -49,18 +49,7 @@ export default function PortfolioPage() {
   const [totalChange, setTotalChange] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadFavorites();
-    } else {
-      setFavorites([]);
-      setTotalValue(0);
-      setTotalChange(0);
-      setLoading(false);
-    }
-  }, [user?.id]);
-
-  const loadFavorites = async () => {
+  const loadFavorites = useCallback(async () => {
     if (!user?.id) return;
     
     setLoading(true);
@@ -83,7 +72,18 @@ export default function PortfolioPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadFavorites();
+    } else {
+      setFavorites([]);
+      setTotalValue(0);
+      setTotalChange(0);
+      setLoading(false);
+    }
+  }, [user?.id, loadFavorites]);
 
   const handleRemoveFavorite = async (coinId: string) => {
     if (!user?.id) return;

@@ -49,7 +49,7 @@ export function CoinDetail({ coin }: CoinDetailProps) {
       // Fallback to original coin data on error
       setCoinData(coin);
     }
-  }, [coin, updateCoinFromTicker]);
+  }, [coin]);
 
   // Setup WebSocket for real-time updates
   useEffect(() => {
@@ -104,19 +104,19 @@ export function CoinDetail({ coin }: CoinDetailProps) {
     };
   }, [coin.symbol, loadInitialData]);
 
+  const loadFavoriteStatus = useCallback(async () => {
+    if (!user?.id) return;
+    const favorite = await isFavorite(user.id, coin.id);
+    setIsFav(favorite);
+  }, [user?.id, coin.id]);
+
   useEffect(() => {
     if (user?.id) {
       loadFavoriteStatus();
     } else {
       setIsFav(false);
     }
-  }, [user?.id, coinData.id]);
-
-  const loadFavoriteStatus = async () => {
-    if (!user?.id) return;
-    const favorite = await isFavorite(user.id, coin.id);
-    setIsFav(favorite);
-  };
+  }, [user?.id, coinData.id, loadFavoriteStatus]);
 
   const handleToggleFavorite = async () => {
     if (!user?.id) return;
