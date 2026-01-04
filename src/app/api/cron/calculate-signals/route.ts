@@ -1,0 +1,129 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getCoinsWithSwingIndicators } from "@/lib/supabase/indicators";
+import { calculateSignal } from "@/lib/signal-engine";
+import { saveSignal, getLatestSignal, compareSignals } from "@/lib/supabase/signals";
+import { queueAlert } from "@/lib/supabase/alerts";
+
+/**
+ * Vercel Cron Job: Her 15 dakikada bir tüm coinler için signal hesapla
+ * 
+ * Vercel cron job tarafından otomatik çağrılır.
+ * Authentication: Vercel cron secret kontrolü (opsiyonel)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // Vercel cron job authentication (opsiyonel - production'da açılabilir)
+    const authHeader = request.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
+    
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    console.log("[Cron] Signal hesaplama başladı:", new Date().toISOString());
+
+    // Tüm coinler ve indicators'ları getir
+    const coinsWithIndicators = await getCoinsWithSwingIndicators();
+    
+    if (coinsWithIndicators.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "Hesaplanacak coin bulunamadı",
+        processed: 0,
+        successful: 0,
+        failed: 0,
+      });
+    }
+
+    let successful = 0;
+    let failed = 0;
+    const errors: Array<{ coin: string; error: string }> = [];
+    const alertCandidates: Array<{ coin: string; change: any }> = [];
+
+    // Her coin için signal hesapla
+    for (const { coin, indicators } of coinsWithIndicators) {
+      try {
+        // Önceki signal'ı al (kaydetmeden önce)
+        const previousSignal = await getLatestSignal(coin.symbol);
+        
+        // Signal hesapla
+        const signal = calculateSignal(indicators, coin);
+        
+        // Veritabanına kaydet
+        const saved = await saveSignal(signal);
+        
+        if (saved) {
+          successful++;
+          
+          // Önceki signal ile karşılaştır (alert için)
+          if (previousSignal) {
+            const change = compareSignals(previousSignal, signal);
+            if (change && change.change_type !== "NO_CHANGE") {
+              alertCandidates.push({
+                coin: coin.symbol,
+                change,
+              });
+              
+              // Alert kuyruğuna ekle (gelecekte kullanıcı bazlı olacak)
+              // TODO: Tüm kullanıcılar için alert kontrolü yapılacak
+              await queueAlert("system", change);
+            }
+          } else if (signal.score >= 80) {
+            // İlk signal ve score >= 80 (ACTION)
+            const change = compareSignals(null, signal);
+            if (change) {
+              alertCandidates.push({
+                coin: coin.symbol,
+                change,
+              });
+              await queueAlert("system", change);
+            }
+          }
+        } else {
+          failed++;
+          errors.push({
+            coin: coin.symbol,
+            error: "Signal kaydedilemedi",
+          });
+        }
+      } catch (error) {
+        failed++;
+        errors.push({
+          coin: coin.symbol,
+          error: error instanceof Error ? error.message : "Bilinmeyen hata",
+        });
+        console.error(`[Cron] ${coin.symbol} için signal hesaplama hatası:`, error);
+      }
+    }
+
+    console.log(`[Cron] Signal hesaplama tamamlandı: ${successful} başarılı, ${failed} başarısız`);
+    
+    if (alertCandidates.length > 0) {
+      console.log(`[Cron] ${alertCandidates.length} coin için alert adayı tespit edildi`);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Signal hesaplama tamamlandı",
+      processed: coinsWithIndicators.length,
+      successful,
+      failed,
+      alertCandidates: alertCandidates.length,
+      errors: errors.length > 0 ? errors : undefined,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[Cron] Signal hesaplama genel hatası:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Bilinmeyen hata",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
+  }
+}

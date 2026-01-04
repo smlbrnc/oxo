@@ -23,45 +23,59 @@ import {
   Box,
 } from "@mantine/core";
 import { IconAlertCircle, IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
-import { getCoinsWithSwingIndicators, SwingIndicators } from "@/lib/supabase/indicators";
-import { calculateSignal, SignalResult } from "@/lib/signal-engine";
-import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
+import { getAllLatestSignals, storedSignalToSignalResult } from "@/lib/supabase/signals";
+import { SignalResult } from "@/lib/signal-engine";
+import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker, getCoinById } from "@/lib/binance";
 import { CryptoCoin } from "@/lib/types";
-
-interface CoinWithIndicators {
-  coin: CryptoCoin;
-  indicators: SwingIndicators;
-}
 
 export default function TradePage() {
   const { user } = useAuth();
   const [signals, setSignals] = useState<SignalResult[]>([]);
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
-  const indicatorsRef = useRef<CoinWithIndicators[]>([]);
+  const signalsRef = useRef<SignalResult[]>([]);
 
   const loadSignals = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getCoinsWithSwingIndicators();
-      indicatorsRef.current = data; // Store in ref for WebSocket callback
+      // Veritabanından en son hesaplanmış signal'ları getir
+      const storedSignals = await getAllLatestSignals();
       
-      // Calculate signals
-      const calculatedSignals = data.map(({ coin, indicators }) =>
-        calculateSignal(indicators, coin)
+      if (storedSignals.length === 0) {
+        setSignals([]);
+        setLoading(false);
+        return;
+      }
+
+      // Her signal için coin bilgilerini getir (fiyat güncellemesi için)
+      const signalsWithCoins = await Promise.all(
+        storedSignals.map(async (stored) => {
+          try {
+            const coin = await getCoinById(stored.coin_symbol.toLowerCase());
+            if (coin) {
+              return storedSignalToSignalResult(stored, coin);
+            }
+            return null;
+          } catch (error) {
+            console.error(`Error fetching coin ${stored.coin_symbol}:`, error);
+            return null;
+          }
+        })
       );
-      
-      // Filter: only show signals with score ≥55
-      const visibleSignals = calculatedSignals.filter((s) => s.showInUI);
-      
+
+      const validSignals = signalsWithCoins.filter(
+        (s): s is SignalResult => s !== null
+      );
+
       // Sort by score (highest first)
-      visibleSignals.sort((a, b) => b.score - a.score);
+      validSignals.sort((a, b) => b.score - a.score);
       
-      setSignals(visibleSignals);
+      setSignals(validSignals);
+      signalsRef.current = validSignals;
       
-      // Setup WebSocket for price updates
-      if (visibleSignals.length > 0) {
-        const symbols = visibleSignals.map((s) => symbolToBinancePair(s.coin.symbol));
+      // Setup WebSocket for price updates (sadece fiyat güncellemesi)
+      if (validSignals.length > 0) {
+        const symbols = validSignals.map((s) => symbolToBinancePair(s.coin.symbol));
         
         if (wsRef.current) {
           wsRef.current.close();
@@ -73,21 +87,8 @@ export default function TradePage() {
               prev.map((signal) => {
                 const coinBinanceSymbol = symbolToBinancePair(signal.coin.symbol);
                 if (coinBinanceSymbol === symbol) {
+                  // Sadece fiyat güncelle (signal hesaplama yapma, cron job yapacak)
                   const updatedCoin = updateCoinFromTicker(signal.coin, tickerData);
-                  
-                  // Find original indicators for this coin using ref
-                  const originalData = indicatorsRef.current.find(
-                    (item) => symbolToBinancePair(item.coin.symbol) === symbol
-                  );
-                  
-                  if (originalData) {
-                    // Recalculate signal with updated price
-                    const recalculatedSignal = calculateSignal(originalData.indicators, updatedCoin);
-                    // Only update if still visible (score ≥55)
-                    return recalculatedSignal.showInUI ? recalculatedSignal : signal;
-                  }
-                  
-                  // Fallback: just update coin price
                   return { ...signal, coin: updatedCoin };
                 }
                 return signal;
