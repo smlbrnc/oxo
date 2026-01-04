@@ -37,33 +37,29 @@ export function CoinDetail({ coin }: CoinDetailProps) {
   const [coinData, setCoinData] = useState<CryptoCoin>(coin);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Initial load from Binance API
-  const loadInitialData = useCallback(async () => {
-    try {
-      const binanceSymbol = symbolToBinancePair(coin.symbol);
-      const ticker = await getTicker24hr(binanceSymbol);
-      const updatedCoin = updateCoinFromTicker(coin, ticker);
-      setCoinData(updatedCoin);
-    } catch (error) {
-      console.error("Error loading coin data:", error);
-      // Fallback to original coin data on error
-      setCoinData(coin);
-    }
-  }, [coin]);
-
   // Setup WebSocket for real-time updates
   useEffect(() => {
     let isMounted = true;
     let ws: WebSocket | null = null;
 
     // Initial load
-    loadInitialData();
+    const loadInitialData = async () => {
+      try {
+        const binanceSymbol = symbolToBinancePair(coin.symbol);
+        const ticker = await getTicker24hr(binanceSymbol);
+        const updatedCoin = updateCoinFromTicker(coin, ticker);
+        if (isMounted) {
+          setCoinData(updatedCoin);
+        }
+      } catch (error) {
+        console.error("Error loading coin data:", error);
+        if (isMounted) {
+          setCoinData(coin);
+        }
+      }
+    };
 
-    // Close existing WebSocket
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    loadInitialData();
 
     // Delay WebSocket connection to avoid race conditions
     const timeoutId = setTimeout(() => {
@@ -102,7 +98,7 @@ export function CoinDetail({ coin }: CoinDetailProps) {
         wsRef.current = null;
       }
     };
-  }, [coin.symbol, loadInitialData]);
+  }, [coin.symbol, coin]);
 
   const loadFavoriteStatus = useCallback(async () => {
     if (!user?.id) return;

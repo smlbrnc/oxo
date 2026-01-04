@@ -7,7 +7,7 @@ import { SearchBar } from "@/components/search-bar";
 import { FilterPanel } from "@/components/filter-panel";
 import { CryptoTable } from "@/components/crypto-table";
 import { SortField, SortOrder, FilterOptions, CryptoCoin } from "@/lib/types";
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { getAllCoins, createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
 import { usePagination } from "@mantine/hooks";
 
@@ -19,64 +19,64 @@ export default function Home() {
   const [coins, setCoins] = useState<CryptoCoin[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Initial load from Binance API
-  const loadInitialData = useCallback(async () => {
-    try {
-      const allCoins = await getAllCoins();
-      setCoins(allCoins);
-    } catch (error) {
-      console.error("Error loading initial data:", error);
-      setCoins([]);
-    }
-  }, []);
-
-  // Setup WebSocket for real-time updates
+  // Initial data load and WebSocket setup
   useEffect(() => {
-    // Initial load
-    loadInitialData();
-
-    // Close existing WebSocket
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-
-    // Wait for coins to load before setting up WebSocket
-    if (coins.length > 0) {
-      // Get all symbols for WebSocket (limit to first 100 to avoid URL length issues)
-      const symbols = coins
-        .slice(0, 100)
-        .map((coin) => symbolToBinancePair(coin.symbol));
-      
-      // Create WebSocket connection for all tickers
-      const ws = createMultiTickerWebSocket(symbols, {
-        onTicker: (symbol, tickerData) => {
-          // Find corresponding coin and update
-          setCoins((prevCoins) => {
-            return prevCoins.map((coin) => {
-              const coinBinanceSymbol = symbolToBinancePair(coin.symbol);
-              if (coinBinanceSymbol === symbol) {
-                return updateCoinFromTicker(coin, tickerData);
-              }
-              return coin;
-            });
+    let mounted = true;
+    
+    // Load initial data
+    const init = async () => {
+      try {
+        const allCoins = await getAllCoins();
+        if (!mounted) return;
+        
+        setCoins(allCoins);
+        
+        // WebSocket'i veriler yüklendikten sonra kur
+        if (allCoins.length > 0) {
+          // Get all symbols for WebSocket (limit to first 100 to avoid URL length issues)
+          const symbols = allCoins
+            .slice(0, 100)
+            .map((coin) => symbolToBinancePair(coin.symbol));
+          
+          // Create WebSocket connection for all tickers
+          const ws = createMultiTickerWebSocket(symbols, {
+            onTicker: (symbol, tickerData) => {
+              // Find corresponding coin and update
+              setCoins((prevCoins) => {
+                return prevCoins.map((coin) => {
+                  const coinBinanceSymbol = symbolToBinancePair(coin.symbol);
+                  if (coinBinanceSymbol === symbol) {
+                    return updateCoinFromTicker(coin, tickerData);
+                  }
+                  return coin;
+                });
+              });
+            },
+            onError: (error) => {
+              console.error("WebSocket error:", error);
+            },
           });
-        },
-        onError: (error) => {
-          console.error("WebSocket error:", error);
-        },
-      });
 
-      wsRef.current = ws;
-
-      return () => {
-        if (wsRef.current) {
-          wsRef.current.close();
-          wsRef.current = null;
+          wsRef.current = ws;
         }
-      };
-    }
-  }, [loadInitialData, coins]);
+      } catch (error) {
+        console.error("Error loading initial data:", error);
+        if (mounted) {
+          setCoins([]);
+        }
+      }
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []); // Sadece component mount olduğunda çalışır
 
   const filteredAndSortedCoins = useMemo(() => {
     let result = [...coins];

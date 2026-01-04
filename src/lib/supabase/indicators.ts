@@ -120,3 +120,82 @@ export async function getIndicatorsFromCache(
     return { data, is_fresh: isCacheFresh(data.updated_at) };
   }
 }
+
+/**
+ * Veritabanında indicators'ı olan tüm coinleri getir
+ */
+export async function getAllCoinsWithIndicators(
+  strategy: "swing" | "scalp"
+): Promise<Array<{ coin_id: string; coin_symbol: string }>> {
+  try {
+    const supabase = createClient();
+    const tableName = strategy === "swing" ? "swing_indicators" : "scalp_indicators";
+    
+    const { data, error } = await supabase
+      .from(tableName)
+      .select("coin_id, coin_symbol")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      console.error(`Error fetching coins from ${tableName}:`, error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("Error in getAllCoinsWithIndicators:", error);
+    return [];
+  }
+}
+
+/**
+ * Symbol'e göre swing göstergelerini getir
+ */
+export async function getSwingIndicatorsBySymbol(
+  coinSymbol: string
+): Promise<SwingIndicators | null> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("swing_indicators")
+      .select("*")
+      .eq("coin_symbol", coinSymbol.toUpperCase())
+      .single();
+
+    if (error) {
+      console.error("Error fetching swing indicators by symbol:", error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error in getSwingIndicatorsBySymbol:", error);
+    return null;
+  }
+}
+
+/**
+ * Symbol'e göre scalp göstergelerini getir
+ */
+export async function getScalpIndicatorsBySymbol(
+  coinSymbol: string
+): Promise<ScalpIndicators | null> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("scalp_indicators")
+      .select("*")
+      .eq("coin_symbol", coinSymbol.toUpperCase())
+      .single();
+
+    if (error) {
+      console.error("Error fetching scalp indicators by symbol:", error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error in getScalpIndicatorsBySymbol:", error);
+    return null;
+  }
+}

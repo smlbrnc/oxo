@@ -530,11 +530,9 @@ export function createBinanceWebSocket(
     }
   };
 
-  ws.onclose = (event) => {
-    // Only log unexpected closes (not normal closure codes 1000, 1001)
-    if (event.code !== 1000 && event.code !== 1001 && event.code !== 1005) {
-      console.warn("WebSocket closed unexpectedly:", event.code, event.reason);
-    }
+  ws.onclose = () => {
+    // WebSocket kapatıldı - sessizce ele al
+    // Kod 1006 (abnormal closure) normalde React geliştirme modunda sık görülür
   };
   
   return ws;
@@ -614,11 +612,9 @@ export function createMultiTickerWebSocket(
     }
   };
 
-  ws.onclose = (event) => {
-    // Only log unexpected closes (not normal closure codes 1000, 1001)
-    if (event.code !== 1000 && event.code !== 1001 && event.code !== 1005) {
-      console.warn("WebSocket closed unexpectedly:", event.code, event.reason);
-    }
+  ws.onclose = () => {
+    // WebSocket kapatıldı - sessizce ele al
+    // Kod 1006 (abnormal closure) normalde React geliştirme modunda sık görülür
   };
   
   return ws;

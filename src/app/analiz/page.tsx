@@ -30,7 +30,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { CryptoCoin } from "@/lib/types";
 import { AnalysisRequest } from "@/lib/gemini";
-import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
+import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker, getCoinById } from "@/lib/binance";
 import {
   fetchTaapiValue,
   fetchTaapiFib,
@@ -38,6 +38,11 @@ import {
   fetchTaapiPivot,
   fetchComplexIndicator,
 } from "@/lib/taapi-client";
+import { 
+  getSwingIndicatorsBySymbol, 
+  getScalpIndicatorsBySymbol,
+  getAllCoinsWithIndicators 
+} from "@/lib/supabase/indicators";
 
 export default function AnalizPage() {
   const { user } = useAuth();
@@ -119,70 +124,147 @@ export default function AnalizPage() {
     
     setLoading(true);
     try {
-      const favoriteCoins = await getFavoritesCoins(user.id);
-      setFavorites(favoriteCoins);
+      // Supabase'den indicators'ı olan coinleri getir
+      const coinsWithIndicators = await getAllCoinsWithIndicators(tradingStrategy);
+      
+      if (coinsWithIndicators.length === 0) {
+        setFavorites([]);
+        setCoinIndicators({});
+        setLoading(false);
+        return;
+      }
+
+      // Her coin için Binance'den fiyat bilgilerini al
+      const coinDataPromises = coinsWithIndicators.map(async (coinInfo) => {
+        try {
+          const coinData = await getCoinById(coinInfo.coin_symbol.toLowerCase());
+          return coinData;
+        } catch (error) {
+          console.error(`Error loading coin ${coinInfo.coin_symbol}:`, error);
+          return null;
+        }
+      });
+
+      const allCoins = await Promise.all(coinDataPromises);
+      const validCoins = allCoins.filter((coin): coin is CryptoCoin => coin !== null);
+      setFavorites(validCoins);
+      
+      // Göstergeleri yükle
+      const indicatorsData: Record<string, {
+        ma?: number | null;
+        atr?: number | null;
+        rsi?: number | null;
+        adx?: number | null;
+        fib?: { value: number; trend: string; startPrice: number; endPrice: number } | null;
+        vwap?: number | null;
+        bbands?: { valueUpperBand: number; valueMiddleBand: number; valueLowerBand: number } | null;
+        pivot?: { r3: number; r2: number; r1: number; p: number; s1: number; s2: number; s3: number } | null;
+      }> = {};
+
+      // Symbol'e göre göstergeleri yükle
+      await Promise.all(
+        validCoins.map(async (coin) => {
+          if (tradingStrategy === "swing") {
+            const swingData = await getSwingIndicatorsBySymbol(coin.symbol);
+            if (swingData) {
+              indicatorsData[coin.id] = {
+                ma: swingData.ma ? Number(swingData.ma) : null,
+                atr: swingData.atr ? Number(swingData.atr) : null,
+                rsi: swingData.rsi ? Number(swingData.rsi) : null,
+                adx: swingData.adx ? Number(swingData.adx) : null,
+                fib: swingData.fib_value && swingData.fib_trend && swingData.fib_start_price && swingData.fib_end_price
+                  ? {
+                      value: Number(swingData.fib_value),
+                      trend: swingData.fib_trend,
+                      startPrice: Number(swingData.fib_start_price),
+                      endPrice: Number(swingData.fib_end_price),
+                    }
+                  : null,
+              };
+            }
+          } else {
+            const scalpData = await getScalpIndicatorsBySymbol(coin.symbol);
+            if (scalpData) {
+              indicatorsData[coin.id] = {
+                atr: scalpData.atr ? Number(scalpData.atr) : null,
+                vwap: scalpData.vwap ? Number(scalpData.vwap) : null,
+                rsi: scalpData.rsi ? Number(scalpData.rsi) : null,
+                bbands: scalpData.bbands_upper && scalpData.bbands_middle && scalpData.bbands_lower
+                  ? {
+                      valueUpperBand: Number(scalpData.bbands_upper),
+                      valueMiddleBand: Number(scalpData.bbands_middle),
+                      valueLowerBand: Number(scalpData.bbands_lower),
+                    }
+                  : null,
+                pivot: scalpData.pivot_r3 && scalpData.pivot_r2 && scalpData.pivot_r1 && scalpData.pivot_p &&
+                       scalpData.pivot_s1 && scalpData.pivot_s2 && scalpData.pivot_s3
+                  ? {
+                      r3: Number(scalpData.pivot_r3),
+                      r2: Number(scalpData.pivot_r2),
+                      r1: Number(scalpData.pivot_r1),
+                      p: Number(scalpData.pivot_p),
+                      s1: Number(scalpData.pivot_s1),
+                      s2: Number(scalpData.pivot_s2),
+                      s3: Number(scalpData.pivot_s3),
+                    }
+                  : null,
+              };
+            }
+          }
+        })
+      );
+
+      setCoinIndicators(indicatorsData);
+      
+      // WebSocket'i veriler yüklendikten sonra kur
+      if (validCoins.length > 0) {
+        const symbols = validCoins
+          .map((coin) => symbolToBinancePair(coin.symbol))
+          .filter((symbol) => symbol);
+        
+        if (symbols.length > 0 && wsRef.current === null) {
+          const ws = createMultiTickerWebSocket(symbols, {
+            onTicker: (symbol, tickerData) => {
+              setFavorites((prevFavorites) => {
+                return prevFavorites.map((coin) => {
+                  const coinBinanceSymbol = symbolToBinancePair(coin.symbol);
+                  if (coinBinanceSymbol === symbol) {
+                    return updateCoinFromTicker(coin, tickerData);
+                  }
+                  return coin;
+                });
+              });
+            },
+            onError: (error) => {
+              console.error("WebSocket error:", error);
+            },
+          });
+          wsRef.current = ws;
+        }
+      }
     } catch (error) {
       console.error("Error loading favorites:", error);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, tradingStrategy]);
 
   useEffect(() => {
     if (user?.id) {
       loadFavorites();
     } else {
       setFavorites([]);
+      setCoinIndicators({});
       setLoading(false);
     }
-  }, [user?.id, loadFavorites]);
 
-  // Setup WebSocket for real-time updates
-  useEffect(() => {
-    // Close existing WebSocket
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-
-    // Wait for favorites to load before setting up WebSocket
-    if (favorites.length > 0) {
-      // Get all symbols for WebSocket
-      const symbols = favorites
-        .map((coin) => symbolToBinancePair(coin.symbol))
-        .filter((symbol) => symbol); // Filter out invalid symbols
-      
-      if (symbols.length > 0) {
-        // Create WebSocket connection for all tickers
-        const ws = createMultiTickerWebSocket(symbols, {
-          onTicker: (symbol, tickerData) => {
-            // Find corresponding coin and update
-            setFavorites((prevFavorites) => {
-              return prevFavorites.map((coin) => {
-                const coinBinanceSymbol = symbolToBinancePair(coin.symbol);
-                if (coinBinanceSymbol === symbol) {
-                  return updateCoinFromTicker(coin, tickerData);
-                }
-                return coin;
-              });
-            });
-          },
-          onError: (error) => {
-            console.error("WebSocket error:", error);
-          },
-        });
-
-        wsRef.current = ws;
-
-        return () => {
-          if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
-          }
-        };
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
-    }
-  }, [favorites]);
+    };
+  }, [user?.id, loadFavorites, tradingStrategy]);
 
   // Rotate loading texts when analyzing
   useEffect(() => {
