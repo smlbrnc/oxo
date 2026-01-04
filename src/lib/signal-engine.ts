@@ -408,7 +408,7 @@ export function calculateSignal(
   
   // STEP 6: Determine Decision
   let decision: "LONG" | "SHORT" | "WAIT" = "WAIT";
-  let showInUI = totalScore >= 55; // Only show if score ≥55
+  const showInUI = totalScore >= 55; // Only show if score ≥55
   
   if (totalScore >= 80) {
     decision = trend.context === "BULLISH" ? "LONG" : "SHORT";

@@ -1,3 +1,6 @@
 [2026-01-04 21:09:05] Edge function çağrılıyor...
 [2026-01-04 21:09:05] ✓ Başarılı (HTTP 200)
   Coin: BTC, Endpoint: RSI, Progress: 4/8
+[2026-01-04 21:10:54] Edge function çağrılıyor...
+[2026-01-04 21:10:54] ✓ Başarılı (HTTP 200)
+  Coin: BTC, Endpoint: MA, Progress: 1/8

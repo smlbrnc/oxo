@@ -36,7 +36,6 @@ interface CoinWithIndicators {
 export default function TradePage() {
   const { user } = useAuth();
   const [signals, setSignals] = useState<SignalResult[]>([]);
-  const [coinsWithIndicators, setCoinsWithIndicators] = useState<CoinWithIndicators[]>([]);
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const indicatorsRef = useRef<CoinWithIndicators[]>([]);
@@ -45,7 +44,6 @@ export default function TradePage() {
     setLoading(true);
     try {
       const data = await getCoinsWithSwingIndicators();
-      setCoinsWithIndicators(data);
       indicatorsRef.current = data; // Store in ref for WebSocket callback
       
       // Calculate signals
@@ -115,7 +113,6 @@ export default function TradePage() {
       loadSignals();
     } else {
       setSignals([]);
-      setCoinsWithIndicators([]);
       setLoading(false);
     }
 

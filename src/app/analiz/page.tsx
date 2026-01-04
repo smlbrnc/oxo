@@ -25,7 +25,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { getFavoritesCoins, formatCurrency, formatLargeNumber, formatNumber } from "@/lib/utils";
+import { formatCurrency, formatLargeNumber, formatNumber } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { CryptoCoin } from "@/lib/types";
