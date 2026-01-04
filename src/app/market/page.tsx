@@ -12,7 +12,6 @@ import {
   Text,
   Paper,
   Group,
-  Select,
   Table,
   Badge,
   Skeleton,
@@ -25,21 +24,10 @@ import {
 import { IconAlertCircle, IconArrowUpRight, IconArrowDownRight, IconStar, IconStarFilled } from "@tabler/icons-react";
 import { getTicker24hr, getOrderBook, getRecentTrades, createBinanceWebSocket, symbolToBinancePair, tickerToCryptoCoin, getTickerWithWindowSize } from "@/lib/binance";
 import { BinanceTicker24hr, BinanceOrderBook, BinanceTrade } from "@/lib/types";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
 import { formatCurrency, formatPercentage, formatLargeNumber, isFavorite, toggleFavorite } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-
-const POPULAR_SYMBOLS = [
-  { value: "BTCUSDT", label: "BTC/USDT" },
-  { value: "ETHUSDT", label: "ETH/USDT" },
-  { value: "BNBUSDT", label: "BNB/USDT" },
-  { value: "SOLUSDT", label: "SOL/USDT" },
-  { value: "ADAUSDT", label: "ADA/USDT" },
-  { value: "XRPUSDT", label: "XRP/USDT" },
-  { value: "DOGEUSDT", label: "DOGE/USDT" },
-  { value: "DOTUSDT", label: "DOT/USDT" },
-];
 
 const INTERVALS = [
   { value: "1h", label: "1h", displayLabel: "1 Saatlik" },
@@ -49,7 +37,7 @@ const INTERVALS = [
   { value: "1d", label: "1d", displayLabel: "1 Günlük" },
 ];
 
-export default function MarketPage() {
+function MarketPageContent() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTCUSDT");
@@ -560,5 +548,25 @@ export default function MarketPage() {
         </Container>
       </AppShellMain>
     </AppShell>
+  );
+}
+
+export default function MarketPage() {
+  return (
+    <Suspense fallback={
+      <AppShell header={{ height: 110 }} padding={0}>
+        <HeaderMenu />
+        <AppShellMain className="pt-4">
+          <Container size="xl">
+            <Stack gap="md">
+              <Skeleton height={50} />
+              <Skeleton height={400} />
+            </Stack>
+          </Container>
+        </AppShellMain>
+      </AppShell>
+    }>
+      <MarketPageContent />
+    </Suspense>
   );
 }

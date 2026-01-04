@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { AnalysisData } from "./types";
 
 const API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
 
@@ -59,18 +58,20 @@ export async function generateAnalysis(request: AnalysisRequest): Promise<string
     const text = response.text();
 
     return text.trim();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Gemini API error:", error);
     
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
     // Better error messages
-    if (error?.message?.includes("429") || error?.message?.includes("quota") || error?.message?.includes("Quota exceeded")) {
+    if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("Quota exceeded")) {
       throw new Error("API quota limitine ulaşıldı. Lütfen birkaç dakika sonra tekrar deneyin.");
     }
-    if (error?.message?.includes("API_KEY") || error?.message?.includes("401") || error?.message?.includes("403")) {
+    if (errorMessage.includes("API_KEY") || errorMessage.includes("401") || errorMessage.includes("403")) {
       throw new Error("Geçersiz API key. Lütfen .env.local dosyasındaki GOOGLE_GEMINI_API_KEY değerini kontrol edin.");
     }
     
-    throw new Error(`Analiz oluşturulurken bir hata oluştu: ${error?.message || "Bilinmeyen hata"}`);
+    throw new Error(`Analiz oluşturulurken bir hata oluştu: ${errorMessage || "Bilinmeyen hata"}`);
   }
 }
 

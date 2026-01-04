@@ -1,5 +1,5 @@
 import { createClient } from "./client";
-import { UserSettings, ColorMode } from "../types";
+import { UserSettings } from "../types";
 
 /**
  * Get user settings from database
@@ -31,7 +31,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
 export async function createUserSettings(
   userId: string,
   settings: Partial<UserSettings> = {}
-): Promise<{ data: UserSettings | null; error: any }> {
+): Promise<{ data: UserSettings | null; error: unknown }> {
   const supabase = createClient();
 
   const defaultSettings: Omit<UserSettings, "id" | "updated_at"> = {
@@ -65,7 +65,7 @@ export async function createUserSettings(
 export async function updateUserSettings(
   userId: string,
   settings: Partial<Omit<UserSettings, "id" | "user_id" | "updated_at">>
-): Promise<{ data: UserSettings | null; error: any }> {
+): Promise<{ data: UserSettings | null; error: unknown }> {
   const supabase = createClient();
 
   // Check if settings exist, if not create them

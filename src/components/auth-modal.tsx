@@ -1,7 +1,7 @@
 "use client";
 
 import { Modal, Drawer } from "@mantine/core";
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery } from "@mantine/hooks";
 import { LoginForm } from "./auth/login-form";
 import { RegisterForm } from "./auth/register-form";
 import { ForgotPasswordForm } from "./auth/forgot-password-form";

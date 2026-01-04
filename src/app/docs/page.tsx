@@ -432,7 +432,7 @@ export default function DocsPage() {
                       1. Moving Averages (MA) - 8/10
                     </Text>
                     <Text size="sm" c="dimmed" ml="md">
-                      Trend yönü belirlemede temel araç. Uzun vadeli MA'lar (50, 100, 200) trend yönü için, kısa vadeli MA'lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
+                      Trend yönü belirlemede temel araç. Uzun vadeli MA&apos;lar (50, 100, 200) trend yönü için, kısa vadeli MA&apos;lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
                     </Text>
                     
                     <Text size="sm" fw={500}>
@@ -476,7 +476,7 @@ export default function DocsPage() {
                       1. ATR (Average True Range) - 6/10
                     </Text>
                     <Text size="sm" c="dimmed" ml="md">
-                      Risk yönetimi için kritik. Scalping'te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
+                      Risk yönetimi için kritik. Scalping&apos;te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
                     </Text>
                     
                     <Text size="sm" fw={500}>

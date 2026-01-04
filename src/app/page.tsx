@@ -9,7 +9,6 @@ import { CryptoTable } from "@/components/crypto-table";
 import { SortField, SortOrder, FilterOptions, CryptoCoin } from "@/lib/types";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { getAllCoins, createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
-import { BinanceTicker24hr } from "@/lib/types";
 import { usePagination } from "@mantine/hooks";
 
 export default function Home() {
@@ -18,20 +17,16 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [filters, setFilters] = useState<FilterOptions>({});
   const [coins, setCoins] = useState<CryptoCoin[]>([]);
-  const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Initial load from Binance API
   const loadInitialData = useCallback(async () => {
-    setLoading(true);
     try {
       const allCoins = await getAllCoins();
       setCoins(allCoins);
     } catch (error) {
       console.error("Error loading initial data:", error);
       setCoins([]);
-    } finally {
-      setLoading(false);
     }
   }, []);
 

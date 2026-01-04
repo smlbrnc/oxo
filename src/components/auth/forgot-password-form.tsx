@@ -43,7 +43,7 @@ export function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFormProps)
     const { error } = await resetPassword(values.email);
 
     if (error) {
-      setError(error.message || "Şifre sıfırlama başarısız");
+      setError((error as { message?: string }).message || "Şifre sıfırlama başarısız");
       setLoading(false);
     } else {
       setSuccess(true);

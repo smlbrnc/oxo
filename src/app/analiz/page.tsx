@@ -30,6 +30,7 @@ import { getFavoritesCoins, formatCurrency, formatLargeNumber, formatNumber } fr
 import { useAuth } from "@/contexts/auth-context";
 import { useState, useEffect, useRef } from "react";
 import { CryptoCoin } from "@/lib/types";
+import { AnalysisRequest } from "@/lib/gemini";
 import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
 import {
   fetchTaapiValue,
@@ -197,8 +198,7 @@ export default function AnalizPage() {
     }
   }, [analyzingCoinId]);
 
-  const handleAnalyze = async (coin: CryptoCoin, analysis: any) => {
-    if (!analysis) return;
+  const handleAnalyze = async (coin: CryptoCoin) => {
 
     const indicators = coinIndicators[coin.id];
     if (!indicators) {
@@ -218,7 +218,7 @@ export default function AnalizPage() {
 
     try {
       // Trading strategy'ye göre request body oluştur
-      const requestBody: any = {
+      const requestBody: AnalysisRequest = {
         coinName: coin.name,
         symbol: coin.symbol,
         price: coin.current_price,
@@ -331,20 +331,20 @@ export default function AnalizPage() {
   // Helper: Populate indicators from cache data
   const populateIndicatorsFromCache = (
     coin: CryptoCoin,
-    cachedData: any,
+    cachedData: Record<string, unknown>,
     strategy: "swing" | "scalp"
   ) => {
     if (strategy === "swing") {
-      setMaValue(cachedData.ma);
-      setModalAtrValue(cachedData.atr);
-      setModalRsiValue(cachedData.rsi);
-      setModalAdxValue(cachedData.adx);
-      if (cachedData.fib_value !== null) {
+      setMaValue(cachedData.ma as number | null);
+      setModalAtrValue(cachedData.atr as number | null);
+      setModalRsiValue(cachedData.rsi as number | null);
+      setModalAdxValue(cachedData.adx as number | null);
+      if (cachedData.fib_value !== null && cachedData.fib_value !== undefined) {
         setModalFibValue({
-          value: cachedData.fib_value,
-          trend: cachedData.fib_trend || "N/A",
-          startPrice: cachedData.fib_start_price || 0,
-          endPrice: cachedData.fib_end_price || 0,
+          value: cachedData.fib_value as number,
+          trend: (cachedData.fib_trend as string) || "N/A",
+          startPrice: (cachedData.fib_start_price as number) || 0,
+          endPrice: (cachedData.fib_end_price as number) || 0,
         });
       }
       
@@ -353,38 +353,38 @@ export default function AnalizPage() {
         ...prev,
         [coin.id]: {
           ...prev[coin.id],
-          ma: cachedData.ma,
-          atr: cachedData.atr,
-          rsi: cachedData.rsi,
-          adx: cachedData.adx,
-          fib: cachedData.fib_value !== null ? {
-            value: cachedData.fib_value,
-            trend: cachedData.fib_trend || "N/A",
-            startPrice: cachedData.fib_start_price || 0,
-            endPrice: cachedData.fib_end_price || 0,
+          ma: cachedData.ma as number | null,
+          atr: cachedData.atr as number | null,
+          rsi: cachedData.rsi as number | null,
+          adx: cachedData.adx as number | null,
+          fib: cachedData.fib_value !== null && cachedData.fib_value !== undefined ? {
+            value: cachedData.fib_value as number,
+            trend: (cachedData.fib_trend as string) || "N/A",
+            startPrice: (cachedData.fib_start_price as number) || 0,
+            endPrice: (cachedData.fib_end_price as number) || 0,
           } : null,
         },
       }));
     } else {
-      setModalAtrValue(cachedData.atr);
-      setModalVwapValue(cachedData.vwap);
-      setModalRsiValue(cachedData.rsi);
-      if (cachedData.bbands_upper !== null) {
+      setModalAtrValue(cachedData.atr as number | null);
+      setModalVwapValue(cachedData.vwap as number | null);
+      setModalRsiValue(cachedData.rsi as number | null);
+      if (cachedData.bbands_upper !== null && cachedData.bbands_upper !== undefined) {
         setModalBbandsValue({
-          valueUpperBand: cachedData.bbands_upper,
-          valueMiddleBand: cachedData.bbands_middle,
-          valueLowerBand: cachedData.bbands_lower,
+          valueUpperBand: cachedData.bbands_upper as number,
+          valueMiddleBand: cachedData.bbands_middle as number,
+          valueLowerBand: cachedData.bbands_lower as number,
         });
       }
-      if (cachedData.pivot_p !== null) {
+      if (cachedData.pivot_p !== null && cachedData.pivot_p !== undefined) {
         setModalPivotValue({
-          r3: cachedData.pivot_r3,
-          r2: cachedData.pivot_r2,
-          r1: cachedData.pivot_r1,
-          p: cachedData.pivot_p,
-          s1: cachedData.pivot_s1,
-          s2: cachedData.pivot_s2,
-          s3: cachedData.pivot_s3,
+          r3: cachedData.pivot_r3 as number,
+          r2: cachedData.pivot_r2 as number,
+          r1: cachedData.pivot_r1 as number,
+          p: cachedData.pivot_p as number,
+          s1: cachedData.pivot_s1 as number,
+          s2: cachedData.pivot_s2 as number,
+          s3: cachedData.pivot_s3 as number,
         });
       }
       
@@ -393,22 +393,22 @@ export default function AnalizPage() {
         ...prev,
         [coin.id]: {
           ...prev[coin.id],
-          atr: cachedData.atr,
-          vwap: cachedData.vwap,
-          rsi: cachedData.rsi,
-          bbands: cachedData.bbands_upper !== null ? {
-            valueUpperBand: cachedData.bbands_upper,
-            valueMiddleBand: cachedData.bbands_middle,
-            valueLowerBand: cachedData.bbands_lower,
+          atr: cachedData.atr as number | null,
+          vwap: cachedData.vwap as number | null,
+          rsi: cachedData.rsi as number | null,
+          bbands: cachedData.bbands_upper !== null && cachedData.bbands_upper !== undefined ? {
+            valueUpperBand: cachedData.bbands_upper as number,
+            valueMiddleBand: cachedData.bbands_middle as number,
+            valueLowerBand: cachedData.bbands_lower as number,
           } : null,
-          pivot: cachedData.pivot_p !== null ? {
-            r3: cachedData.pivot_r3,
-            r2: cachedData.pivot_r2,
-            r1: cachedData.pivot_r1,
-            p: cachedData.pivot_p,
-            s1: cachedData.pivot_s1,
-            s2: cachedData.pivot_s2,
-            s3: cachedData.pivot_s3,
+          pivot: cachedData.pivot_p !== null && cachedData.pivot_p !== undefined ? {
+            r3: cachedData.pivot_r3 as number,
+            r2: cachedData.pivot_r2 as number,
+            r1: cachedData.pivot_r1 as number,
+            p: cachedData.pivot_p as number,
+            s1: cachedData.pivot_s1 as number,
+            s2: cachedData.pivot_s2 as number,
+            s3: cachedData.pivot_s3 as number,
           } : null,
         },
       }));
@@ -689,7 +689,7 @@ export default function AnalizPage() {
                                           Moving Averages (MA) - 8/10
                                         </Text>
                                         <Text size="xs">
-                                          Trend yönü belirlemede temel araç. Uzun vadeli MA'lar (50, 100, 200) trend yönü için, kısa vadeli MA'lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
+                                          Trend yönü belirlemede temel araç. Uzun vadeli MA&apos;lar (50, 100, 200) trend yönü için, kısa vadeli MA&apos;lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
                                         </Text>
                                       </div>
                                     }
@@ -821,7 +821,7 @@ export default function AnalizPage() {
                                           ATR (Average True Range) - 6/10
                                         </Text>
                                         <Text size="xs">
-                                          Risk yönetimi için kritik. Scalping'te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
+                                          Risk yönetimi için kritik. Scalping&apos;te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
                                         </Text>
                                       </div>
                                     }
@@ -965,7 +965,7 @@ export default function AnalizPage() {
                             variant="filled"
                             size="sm"
                             fullWidth
-                            onClick={() => handleAnalyze(coin, analysis)}
+                            onClick={() => handleAnalyze(coin)}
                             disabled={!analysis || analyzingCoinId === coin.id || !coinIndicators[coin.id]}
                             leftSection={analyzingCoinId === coin.id ? <Loader size="xs" /> : null}
                           >
@@ -1081,7 +1081,7 @@ export default function AnalizPage() {
                     Moving Averages (MA) - 8/10
                   </Text>
                   <Text size="xs" c="dimmed" mb="xs">
-                    Trend yönü belirlemede temel araç. Uzun vadeli MA'lar (50, 100, 200) trend yönü için, kısa vadeli MA'lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
+                    Trend yönü belirlemede temel araç. Uzun vadeli MA&apos;lar (50, 100, 200) trend yönü için, kısa vadeli MA&apos;lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
                   </Text>
                   {maLoading ? (
                     <Group gap="sm">
@@ -1243,7 +1243,7 @@ export default function AnalizPage() {
                     ATR (Average True Range) - 6/10
                   </Text>
                   <Text size="xs" c="dimmed" mb="xs">
-                    Risk yönetimi için kritik. Scalping'te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
+                    Risk yönetimi için kritik. Scalping&apos;te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
                   </Text>
                   {modalAtrLoading ? (
                     <Group gap="sm">

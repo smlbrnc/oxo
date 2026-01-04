@@ -24,7 +24,7 @@ const CACHE_DURATION = {
 };
 
 // Simple in-memory cache
-const cache = new Map<string, { data: any; timestamp: number; duration: number }>();
+const cache = new Map<string, { data: unknown; timestamp: number; duration: number }>();
 
 // Clean up expired cache entries periodically
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -413,7 +413,7 @@ export async function getCoinById(id: string): Promise<CryptoCoin | null> {
     const coin = tickerToCryptoCoin(ticker, 0);
     
     return coin;
-  } catch (error) {
+  } catch {
     // Silently return null for coins not available on Binance
     // Error is already logged in getTicker24hr if needed
     return null;
@@ -427,9 +427,9 @@ export async function getCoinById(id: string): Promise<CryptoCoin | null> {
 export function createBinanceWebSocket(
   symbol: string,
   callbacks: {
-    onTicker?: (data: any) => void;
-    onDepth?: (data: any) => void;
-    onTrade?: (data: any) => void;
+    onTicker?: (data: BinanceTicker24hr) => void;
+    onDepth?: (data: BinanceOrderBook) => void;
+    onTrade?: (data: BinanceTrade) => void;
     onError?: (error: Event) => void;
   }
 ): WebSocket {

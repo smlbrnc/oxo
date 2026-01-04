@@ -48,7 +48,7 @@ export function RegisterForm({ onSwitchToLogin, onSuccess }: RegisterFormProps) 
     const { error } = await signUp(values.email, values.password);
 
     if (error) {
-      setError(error.message || "Kayıt başarısız");
+      setError((error as { message?: string }).message || "Kayıt başarısız");
       setLoading(false);
     } else {
       setSuccess(true);

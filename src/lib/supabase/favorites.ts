@@ -23,7 +23,7 @@ export async function getUserFavorites(userId: string): Promise<string[]> {
 /**
  * Add a coin to user's favorites
  */
-export async function addUserFavorite(userId: string, coinId: string): Promise<{ error: any }> {
+export async function addUserFavorite(userId: string, coinId: string): Promise<{ error: unknown }> {
   const supabase = createClient();
 
   // First check if already exists to avoid duplicate key error
@@ -56,7 +56,7 @@ export async function addUserFavorite(userId: string, coinId: string): Promise<{
 /**
  * Remove a coin from user's favorites
  */
-export async function removeUserFavorite(userId: string, coinId: string): Promise<{ error: any }> {
+export async function removeUserFavorite(userId: string, coinId: string): Promise<{ error: unknown }> {
   const supabase = createClient();
 
   const { error } = await supabase

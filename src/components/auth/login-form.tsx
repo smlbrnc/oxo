@@ -45,7 +45,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword, onSucc
     const { error } = await signIn(values.email, values.password);
 
     if (error) {
-      setError(error.message || "Giriş başarısız");
+      setError((error as { message?: string }).message || "Giriş başarısız");
       setLoading(false);
     } else {
       onSuccess?.();

@@ -25,7 +25,6 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getTicker24hr, createBinanceWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
-import { BinanceTicker24hr } from "@/lib/types";
 
 interface CoinDetailProps {
   coin: CryptoCoin;
@@ -36,12 +35,10 @@ export function CoinDetail({ coin }: CoinDetailProps) {
   const [isFav, setIsFav] = useState(false);
   const [loading, setLoading] = useState(false);
   const [coinData, setCoinData] = useState<CryptoCoin>(coin);
-  const [loadingData, setLoadingData] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Initial load from Binance API
   const loadInitialData = useCallback(async () => {
-    setLoadingData(true);
     try {
       const binanceSymbol = symbolToBinancePair(coin.symbol);
       const ticker = await getTicker24hr(binanceSymbol);
@@ -51,8 +48,6 @@ export function CoinDetail({ coin }: CoinDetailProps) {
       console.error("Error loading coin data:", error);
       // Fallback to original coin data on error
       setCoinData(coin);
-    } finally {
-      setLoadingData(false);
     }
   }, [coin, updateCoinFromTicker]);
 
@@ -101,7 +96,7 @@ export function CoinDetail({ coin }: CoinDetailProps) {
       if (wsRef.current) {
         try {
           wsRef.current.close();
-        } catch (error) {
+        } catch {
           // Ignore close errors
         }
         wsRef.current = null;

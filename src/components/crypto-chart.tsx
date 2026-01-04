@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { createChart, ColorType, CandlestickSeries } from "lightweight-charts";
+import { createChart, ColorType, CandlestickSeries, ISeriesApi, Time } from "lightweight-charts";
 import { useMantineColorScheme } from "@mantine/core";
 
 interface CryptoChartProps {
@@ -12,7 +12,7 @@ interface CryptoChartProps {
 export function CryptoChart({ symbol = "BTCUSDT", interval = "4h" }: CryptoChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
-  const seriesRef = useRef<any>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const { colorScheme } = useMantineColorScheme();
 
   // Tema renkleri
@@ -72,12 +72,12 @@ export function CryptoChart({ symbol = "BTCUSDT", interval = "4h" }: CryptoChart
         const data = await response.json();
 
         // Veri dönüşümü
-        const cdata = data.map((d: any[]) => ({
-          time: (d[0] / 1000) as any, // Binance ms verir, kütüphane saniye ister
-          open: parseFloat(d[1]),
-          high: parseFloat(d[2]),
-          low: parseFloat(d[3]),
-          close: parseFloat(d[4]),
+        const cdata = data.map((d: number[]) => ({
+          time: (d[0] / 1000) as Time, // Binance ms verir, kütüphane saniye ister
+          open: parseFloat(d[1].toString()),
+          high: parseFloat(d[2].toString()),
+          low: parseFloat(d[3].toString()),
+          close: parseFloat(d[4].toString()),
         }));
 
         candlestickSeries.setData(cdata);

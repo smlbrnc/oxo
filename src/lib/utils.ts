@@ -45,12 +45,14 @@ export async function toggleFavorite(userId: string | null, coinId: string): Pro
     if (isFav) {
       const result = await removeUserFavorite(userId, coinId);
       if (result.error) {
-        throw new Error(result.error.message || "Failed to remove favorite");
+        const errorMessage = result.error instanceof Error ? result.error.message : String(result.error);
+        throw new Error(errorMessage || "Failed to remove favorite");
       }
     } else {
       const result = await addUserFavorite(userId, coinId);
       if (result.error) {
-        throw new Error(result.error.message || "Failed to add favorite");
+        const errorMessage = result.error instanceof Error ? result.error.message : String(result.error);
+        throw new Error(errorMessage || "Failed to add favorite");
       }
     }
   } catch (error) {
