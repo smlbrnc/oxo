@@ -293,14 +293,6 @@ export async function getAllTickers(): Promise<BinanceTicker24hr[]> {
   );
 }
 
-/**
- * Get coin image URL from img.logo.dev service
- */
-function getLogoDevImageUrl(coinId: string): string {
-  // Convert coin ID to lowercase for logo.dev API
-  const symbol = coinId.toLowerCase();
-  return `https://img.logo.dev/crypto/${symbol}?token=${LOGO_DEV_API_KEY}`;
-}
 
 /**
  * Update a CryptoCoin with data from Binance ticker
@@ -424,6 +416,15 @@ export async function getCoinById(id: string): Promise<CryptoCoin | null> {
  * Create WebSocket connection for real-time market data
  * Uses Binance WebSocket Stream API
  */
+/**
+ * Get coin image URL from img.logo.dev service
+ */
+function getLogoDevImageUrl(coinId: string): string {
+  // Convert coin ID to lowercase for logo.dev API
+  const symbol = coinId.toLowerCase();
+  return `https://img.logo.dev/crypto/${symbol}?token=${LOGO_DEV_API_KEY}`;
+}
+
 export function createBinanceWebSocket(
   symbol: string,
   callbacks: {

@@ -923,7 +923,6 @@ export default function AnalizPage() {
                               </Group>
                             )}
                           </Paper>
-                        )}
                       </Grid.Col>
 
                       {/* Grid 3: Buttons */}
