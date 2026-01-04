@@ -16,6 +16,7 @@ import { CryptoCoin, SortField, SortOrder } from "@/lib/types";
 import { formatCurrency, formatLargeNumber, formatPercentage, getFavorites, toggleFavorite } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useState, useEffect } from "react";
+import { symbolToBinancePair } from "@/lib/binance";
 
 interface CryptoTableProps {
   coins: CryptoCoin[];
@@ -128,7 +129,7 @@ export function CryptoTable({ coins, sortField, sortOrder, onSort }: CryptoTable
                 </Table.Td>
                 <Table.Td>
                   <Link
-                    href={`/coins/${coin.id}`}
+                    href={`/market?symbol=${symbolToBinancePair(coin.symbol)}`}
                     className="no-underline text-inherit"
                   >
                     <Group gap="sm">

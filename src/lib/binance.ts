@@ -126,6 +126,50 @@ export async function getTicker24hr(symbol: string): Promise<BinanceTicker24hr> 
 }
 
 /**
+ * Get ticker statistics for a symbol with custom window size
+ * Weight: 1 per request
+ * @param symbol - Trading pair symbol (e.g., "BTCUSDT")
+ * @param windowSize - Time window size (e.g., "1h", "4h", "12h", "1d")
+ */
+export async function getTickerWithWindowSize(
+  symbol: string,
+  windowSize: string
+): Promise<BinanceTicker24hr> {
+  const cacheKey = `ticker:${symbol.toUpperCase()}:${windowSize}`;
+  
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const response = await fetch(
+          `${BINANCE_API_BASE}/ticker?symbol=${symbol.toUpperCase()}&windowSize=${windowSize}`,
+          {
+            method: "GET",
+            headers: {
+              "Accept": "application/json",
+            },
+            cache: "no-store",
+          }
+        );
+        
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ msg: "Unknown error" }));
+          throw new Error(error.msg || `Failed to fetch ticker for ${symbol} with window ${windowSize}`);
+        }
+        
+        return response.json();
+      } catch (error) {
+        if (error instanceof TypeError && error.message === "Failed to fetch") {
+          throw new Error("Binance API'ye bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.");
+        }
+        throw error;
+      }
+    },
+    CACHE_DURATION.TICKER
+  );
+}
+
+/**
  * Get order book for a symbol
  * Weight: 1-100 (based on limit, default 20 = 1 weight)
  * Cached for 0.5 seconds to reduce API calls

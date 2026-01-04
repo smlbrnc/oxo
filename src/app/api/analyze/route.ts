@@ -10,13 +10,8 @@ export async function POST(request: NextRequest) {
       !body.coinName ||
       !body.symbol ||
       typeof body.price !== "number" ||
-      typeof body.volume !== "number" ||
-      typeof body.rsi !== "number" ||
-      typeof body.ema !== "number" ||
-      typeof body.adx !== "number" ||
-      typeof body.pdi !== "number" ||
-      typeof body.mdi !== "number" ||
-      !body.candle
+      !body.tradingStrategy ||
+      (body.tradingStrategy !== "scalp" && body.tradingStrategy !== "swing")
     ) {
       return NextResponse.json(
         { error: "Geçersiz istek parametreleri" },

@@ -7,6 +7,7 @@ import {
   IconLogout,
   IconStar,
   IconHeart,
+  IconBook,
 } from "@tabler/icons-react";
 import {
   Avatar,
@@ -34,8 +35,7 @@ const tabs = [
   { value: "/", label: "Ana Sayfa" },
   { value: "/portfolio", label: "Portföy" },
   { value: "/analiz", label: "Analiz" },
-  { value: "/market", label: "Market" },
-  { value: "/about", label: "Hakkında" },
+  { value: "/docs", label: "Teknik Göstergeler" },
 ];
 
 export function HeaderMenu() {
@@ -208,16 +208,10 @@ export function HeaderMenu() {
             />
             <NavLink
               component={Link}
-              href="/market"
-              label="Market"
-              active={pathname === "/market"}
-              onClick={toggle}
-            />
-            <NavLink
-              component={Link}
-              href="/about"
-              label="Hakkında"
-              active={pathname === "/about"}
+              href="/docs"
+              label="Teknik Göstergeler"
+              active={pathname === "/docs"}
+              leftSection={<IconBook size={16} />}
               onClick={toggle}
             />
           </Stack>

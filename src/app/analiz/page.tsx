@@ -19,24 +19,92 @@ import {
   Alert,
   Divider,
   Skeleton,
+  SegmentedControl,
+  Tooltip,
+  Modal,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { IconArrowUpRight, IconArrowDownRight, IconAlertCircle } from "@tabler/icons-react";
 import { getAnalysisData } from "@/lib/analysis-data";
 import { getFavoritesCoins, formatCurrency, formatPercentage, formatLargeNumber, formatNumber } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { CryptoCoin, BinanceTicker24hr } from "@/lib/types";
+import { useState, useEffect, useRef } from "react";
+import { CryptoCoin } from "@/lib/types";
 import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
+import {
+  fetchTaapiValue,
+  fetchTaapiFib,
+  fetchTaapiBbands,
+  fetchTaapiPivot,
+  fetchComplexIndicator,
+} from "@/lib/taapi-client";
 
 export default function AnalizPage() {
   const { user } = useAuth();
   const [favorites, setFavorites] = useState<CryptoCoin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tradingStrategy, setTradingStrategy] = useState<"scalp" | "swing">("swing");
   const [analyzingCoinId, setAnalyzingCoinId] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
   const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({});
   const [expandedCoins, setExpandedCoins] = useState<Set<string>>(new Set());
   const [loadingTextIndex, setLoadingTextIndex] = useState(0);
+  const [detailModalOpened, { open: openDetailModal, close: closeDetailModal }] = useDisclosure(false);
+  const [selectedCoin, setSelectedCoin] = useState<CryptoCoin | null>(null);
+  const [maValue, setMaValue] = useState<number | null>(null);
+  const [maLoading, setMaLoading] = useState(false);
+  const [maError, setMaError] = useState<string | null>(null);
+  const [modalAtrValue, setModalAtrValue] = useState<number | null>(null);
+  const [modalAtrLoading, setModalAtrLoading] = useState(false);
+  const [modalAtrError, setModalAtrError] = useState<string | null>(null);
+  const [modalFibValue, setModalFibValue] = useState<{
+    value: number;
+    trend: string;
+    startPrice: number;
+    endPrice: number;
+  } | null>(null);
+  const [modalFibLoading, setModalFibLoading] = useState(false);
+  const [modalFibError, setModalFibError] = useState<string | null>(null);
+  const [modalRsiValue, setModalRsiValue] = useState<number | null>(null);
+  const [modalRsiLoading, setModalRsiLoading] = useState(false);
+  const [modalRsiError, setModalRsiError] = useState<string | null>(null);
+  const [modalAdxValue, setModalAdxValue] = useState<number | null>(null);
+  const [modalAdxLoading, setModalAdxLoading] = useState(false);
+  const [modalAdxError, setModalAdxError] = useState<string | null>(null);
+  const [modalVwapValue, setModalVwapValue] = useState<number | null>(null);
+  const [modalVwapLoading, setModalVwapLoading] = useState(false);
+  const [modalVwapError, setModalVwapError] = useState<string | null>(null);
+  const [modalBbandsValue, setModalBbandsValue] = useState<{
+    valueUpperBand: number;
+    valueMiddleBand: number;
+    valueLowerBand: number;
+  } | null>(null);
+  const [modalBbandsLoading, setModalBbandsLoading] = useState(false);
+  const [modalBbandsError, setModalBbandsError] = useState<string | null>(null);
+  const [modalPivotValue, setModalPivotValue] = useState<{
+    r3: number;
+    r2: number;
+    r1: number;
+    p: number;
+    s1: number;
+    s2: number;
+    s3: number;
+  } | null>(null);
+  const [modalPivotLoading, setModalPivotLoading] = useState(false);
+  const [modalPivotError, setModalPivotError] = useState<string | null>(null);
+  
+  // Coin kartlarında gösterilecek göstergeler (coin.id bazında)
+  const [coinIndicators, setCoinIndicators] = useState<Record<string, {
+    ma?: number | null;
+    atr?: number | null;
+    rsi?: number | null;
+    adx?: number | null;
+    fib?: { value: number; trend: string; startPrice: number; endPrice: number } | null;
+    vwap?: number | null;
+    bbands?: { valueUpperBand: number; valueMiddleBand: number; valueLowerBand: number } | null;
+    pivot?: { r3: number; r2: number; r1: number; p: number; s1: number; s2: number; s3: number } | null;
+  }>>({});
+  
   const wsRef = useRef<WebSocket | null>(null);
 
   const loadingTexts = [
@@ -132,6 +200,15 @@ export default function AnalizPage() {
   const handleAnalyze = async (coin: CryptoCoin, analysis: any) => {
     if (!analysis) return;
 
+    const indicators = coinIndicators[coin.id];
+    if (!indicators) {
+      setAnalysisErrors((prev) => ({
+        ...prev,
+        [coin.id]: "Lütfen önce 'Detay' butonuna tıklayarak göstergeleri yükleyin.",
+      }));
+      return;
+    }
+
     setAnalyzingCoinId(coin.id);
     setAnalysisErrors((prev) => {
       const newErrors = { ...prev };
@@ -140,28 +217,60 @@ export default function AnalizPage() {
     });
 
     try {
+      // Trading strategy'ye göre request body oluştur
+      const requestBody: any = {
+        coinName: coin.name,
+        symbol: coin.symbol,
+        price: coin.current_price,
+        tradingStrategy: tradingStrategy,
+      };
+
+      if (tradingStrategy === "scalp") {
+        // Scalping göstergeleri
+        if (indicators.atr !== undefined && indicators.atr !== null) {
+          requestBody.atr = indicators.atr;
+        }
+        if (indicators.vwap !== undefined && indicators.vwap !== null) {
+          requestBody.vwap = indicators.vwap;
+        }
+        if (indicators.bbands) {
+          requestBody.bbands = {
+            upper: indicators.bbands.valueUpperBand,
+            middle: indicators.bbands.valueMiddleBand,
+            lower: indicators.bbands.valueLowerBand,
+          };
+        }
+        if (indicators.pivot) {
+          requestBody.pivot = indicators.pivot;
+        }
+        if (indicators.rsi !== undefined && indicators.rsi !== null) {
+          requestBody.rsi = indicators.rsi;
+        }
+      } else {
+        // Swing trade göstergeleri
+        if (indicators.ma !== undefined && indicators.ma !== null) {
+          requestBody.ma = indicators.ma;
+        }
+        if (indicators.atr !== undefined && indicators.atr !== null) {
+          requestBody.atr = indicators.atr;
+        }
+        if (indicators.fib) {
+          requestBody.fib = indicators.fib;
+        }
+        if (indicators.rsi !== undefined && indicators.rsi !== null) {
+          requestBody.rsi = indicators.rsi;
+        }
+        if (indicators.adx !== undefined && indicators.adx !== null) {
+          requestBody.adx = indicators.adx;
+        }
+      }
+
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          coinName: coin.name,
-          symbol: coin.symbol,
-          price: analysis.price?.value || coin.current_price,
-          volume: analysis.candle.volume,
-          rsi: analysis.rsi.value,
-          ema: analysis.ema.value,
-          adx: analysis.movementIndex.adx,
-          pdi: analysis.movementIndex.pdi,
-          mdi: analysis.movementIndex.mdi,
-          candle: {
-            open: analysis.candle.open,
-            close: analysis.candle.close,
-            high: analysis.candle.high,
-            low: analysis.candle.low,
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -197,6 +306,138 @@ export default function AnalizPage() {
       }
       return newSet;
     });
+  };
+
+  // Reset all modal states
+  const resetModalStates = () => {
+    setMaValue(null);
+    setMaError(null);
+    setModalAtrValue(null);
+    setModalAtrError(null);
+    setModalFibValue(null);
+    setModalFibError(null);
+    setModalRsiValue(null);
+    setModalRsiError(null);
+    setModalAdxValue(null);
+    setModalAdxError(null);
+    setModalVwapValue(null);
+    setModalVwapError(null);
+    setModalBbandsValue(null);
+    setModalBbandsError(null);
+    setModalPivotValue(null);
+    setModalPivotError(null);
+  };
+
+  const handleDetailClick = async (coin: CryptoCoin) => {
+    setSelectedCoin(coin);
+    resetModalStates();
+    openDetailModal();
+    
+    const binanceSymbol = symbolToBinancePair(coin.symbol);
+    const rsiInterval = tradingStrategy === "swing" ? "4h" : "1h";
+    const atrInterval = tradingStrategy === "swing" ? "4h" : "1h";
+    
+    // Helper function to fetch and set value (hem modal hem coin kartı için)
+    const fetchValue = async (
+      endpoint: string,
+      interval: string,
+      setLoading: (val: boolean) => void,
+      setValue: (val: number) => void,
+      setError: (val: string | null) => void,
+      errorMessage: string,
+      indicatorKey?: keyof typeof coinIndicators[string]
+    ) => {
+      setLoading(true);
+      try {
+        const value = await fetchTaapiValue(endpoint, binanceSymbol, interval, errorMessage);
+        setValue(value);
+        setError(null);
+        // Coin kartı için de kaydet
+        if (indicatorKey) {
+          setCoinIndicators(prev => ({
+            ...prev,
+            [coin.id]: {
+              ...prev[coin.id],
+              [indicatorKey]: value,
+            },
+          }));
+        }
+      } catch (error) {
+        console.error(`Error fetching ${endpoint}:`, error);
+        setError(error instanceof Error ? error.message : errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    // ATR ve RSI (her iki strateji için)
+    await Promise.all([
+      fetchValue("atr", atrInterval, setModalAtrLoading, setModalAtrValue, setModalAtrError, "ATR değeri alınırken bir hata oluştu", "atr"),
+      fetchValue("rsi", rsiInterval, setModalRsiLoading, setModalRsiValue, setModalRsiError, "RSI değeri alınırken bir hata oluştu", "rsi"),
+    ]);
+    
+    // Swing trade için göstergeler
+    if (tradingStrategy === "swing") {
+      await Promise.all([
+        fetchValue("ma", "4h", setMaLoading, setMaValue, setMaError, "MA değeri alınırken bir hata oluştu", "ma"),
+        fetchValue("adx", "4h", setModalAdxLoading, setModalAdxValue, setModalAdxError, "ADX değeri alınırken bir hata oluştu", "adx"),
+        fetchComplexIndicator(
+          () => fetchTaapiFib(binanceSymbol, "4h", "Fibonacci değeri alınırken bir hata oluştu"),
+          setModalFibLoading,
+          (value) => {
+            setModalFibValue(value);
+            setCoinIndicators(prev => ({
+              ...prev,
+              [coin.id]: {
+                ...prev[coin.id],
+                fib: value,
+              },
+            }));
+          },
+          setModalFibError,
+          "Fibonacci değeri alınırken bir hata oluştu"
+        ),
+      ]);
+    }
+    
+    // Scalp trade için göstergeler
+    if (tradingStrategy === "scalp") {
+      await Promise.all([
+        fetchValue("vwap", "1h", setModalVwapLoading, setModalVwapValue, setModalVwapError, "VWAP değeri alınırken bir hata oluştu", "vwap"),
+        fetchComplexIndicator(
+          () => fetchTaapiBbands(binanceSymbol, "1h", "Bollinger Bands değeri alınırken bir hata oluştu"),
+          setModalBbandsLoading,
+          (value) => {
+            setModalBbandsValue(value);
+            setCoinIndicators(prev => ({
+              ...prev,
+              [coin.id]: {
+                ...prev[coin.id],
+                bbands: value,
+              },
+            }));
+          },
+          setModalBbandsError,
+          "Bollinger Bands değeri alınırken bir hata oluştu"
+        ),
+        fetchComplexIndicator(
+          () => fetchTaapiPivot(binanceSymbol, "1h", "Pivot Points değeri alınırken bir hata oluştu"),
+          setModalPivotLoading,
+          (value) => {
+            setModalPivotValue(value);
+            setCoinIndicators(prev => ({
+              ...prev,
+              [coin.id]: {
+                ...prev[coin.id],
+                pivot: value,
+              },
+            }));
+          },
+          setModalPivotError,
+          "Pivot Points değeri alınırken bir hata oluştu"
+        ),
+      ]);
+    }
   };
 
   if (loading) {
@@ -259,13 +500,24 @@ export default function AnalizPage() {
         <AppShellMain className="pt-4">
           <Container size="xl">
             <Stack gap="xl">
-              <Title order={1}>Analiz</Title>
+              <Group justify="space-between" align="center">
+                <Title order={1}>Analiz</Title>
+                <SegmentedControl
+                  value={tradingStrategy}
+                  onChange={(value) => setTradingStrategy(value as "scalp" | "swing")}
+                  data={[
+                    { label: "Scalp Trade", value: "scalp" },
+                    { label: "Swing Trade", value: "swing" },
+                  ]}
+                />
+              </Group>
 
             <Stack gap="md">
               {favorites.map((coin) => {
                 const isPositive = coin.price_change_percentage_24h >= 0;
                 const changeColor = isPositive ? "green" : "red";
                 const analysis = getAnalysisData(coin.id, coin.current_price);
+                const indicators = coinIndicators[coin.id] || {};
 
                 return (
                   <Paper
@@ -322,55 +574,271 @@ export default function AnalizPage() {
                         {analysis && (
                           <Paper p="md" withBorder radius="md" style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
                             <Group gap="xl" justify="space-between" wrap="nowrap" style={{ width: '100%' }}>
-                              {/* RSI */}
-                              <Stack gap={2} align="center" style={{ flex: 1 }}>
-                                <Text size="xs" c="dimmed" fw={500}>
-                                  RSI
-                                </Text>
-                                <Text fw={600} size="sm">
-                                  {formatNumber(analysis.rsi.value, 2)}
-                                </Text>
-                              </Stack>
+                              {tradingStrategy === "swing" ? (
+                                <>
+                                  {/* MA */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          Moving Averages (MA) - 8/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Trend yönü belirlemede temel araç. Uzun vadeli MA'lar (50, 100, 200) trend yönü için, kısa vadeli MA'lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        MA
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.ma !== undefined && indicators.ma !== null ? undefined : "dimmed"}>
+                                        {indicators.ma !== undefined && indicators.ma !== null ? formatCurrency(indicators.ma) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
 
-                              {/* EMA */}
-                              <Stack gap={2} align="center" style={{ flex: 1 }}>
-                                <Text size="xs" c="dimmed" fw={500}>
-                                  EMA
-                                </Text>
-                                <Text fw={600} size="sm">
-                                  {formatCurrency(analysis.ema.value)}
-                                </Text>
-                              </Stack>
+                                  {/* ATR */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          ATR (Average True Range) - 8/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Risk yönetimi için kritik. Stop-loss ve pozisyon büyüklüğü ayarlamasında kullanılır. Volatiliteyi objektif olarak ölçer.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        ATR
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.atr !== undefined && indicators.atr !== null ? undefined : "dimmed"}>
+                                        {indicators.atr !== undefined && indicators.atr !== null ? formatNumber(indicators.atr, 2) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
 
-                              {/* ADX */}
-                              <Stack gap={2} align="center" style={{ flex: 1 }}>
-                                <Text size="xs" c="dimmed" fw={500}>
-                                  ADX
-                                </Text>
-                                <Text fw={600} size="sm">
-                                  {formatNumber(analysis.movementIndex.adx, 2)}
-                                </Text>
-                              </Stack>
+                                  {/* FIB */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          Fibonacci Retracement - 8/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Önemli destek ve direnç seviyelerini belirler. %61.8 seviyesi özellikle güçlü bir seviyedir. Hedef ve stop-loss belirlemede kullanılır.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        FIB
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.fib !== undefined && indicators.fib !== null ? undefined : "dimmed"}>
+                                        {indicators.fib !== undefined && indicators.fib !== null ? formatCurrency(indicators.fib.value) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
 
-                              {/* PDI */}
-                              <Stack gap={2} align="center" style={{ flex: 1 }}>
-                                <Text size="xs" c="dimmed" fw={500}>
-                                  PDI
-                                </Text>
-                                <Text fw={600} size="sm">
-                                  {formatNumber(analysis.movementIndex.pdi, 2)}
-                                </Text>
-                              </Stack>
+                                  {/* RSI */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          RSI (Relative Strength Index) - 7/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Momentum tespitinde etkili. Aşırı alım (70+) ve aşırı satım (30-) bölgelerini gösterir. Trend dönüşlerinin erken işaretlerini verebilir.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        RSI
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.rsi !== undefined && indicators.rsi !== null ? undefined : "dimmed"}>
+                                        {indicators.rsi !== undefined && indicators.rsi !== null ? formatNumber(indicators.rsi, 2) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
 
-                              {/* MDI */}
-                              <Stack gap={2} align="center" style={{ flex: 1 }}>
-                                <Text size="xs" c="dimmed" fw={500}>
-                                  MDI
-                                </Text>
-                                <Text fw={600} size="sm">
-                                  {formatNumber(analysis.movementIndex.mdi, 2)}
-                                </Text>
-                              </Stack>
+                                  {/* ADX */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          ADX (Average Directional Index) - 7/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Trend gücünü objektif olarak ölçer. 25 üzeri güçlü trend, 20 altı zayıf trend. Trend yönü için MA ile birlikte kullanılmalıdır.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        ADX
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.adx !== undefined && indicators.adx !== null ? undefined : "dimmed"}>
+                                        {indicators.adx !== undefined && indicators.adx !== null ? formatNumber(indicators.adx, 2) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
+                                </>
+                              ) : (
+                                <>
+                                  {/* ATR */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          ATR (Average True Range) - 6/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Risk yönetimi için kritik. Scalping'te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        ATR
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.atr !== undefined && indicators.atr !== null ? undefined : "dimmed"}>
+                                        {indicators.atr !== undefined && indicators.atr !== null ? formatNumber(indicators.atr, 2) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
+
+                                  {/* VWAP */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          VWAP (Volume-Weighted Average Price) - 6/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Günlük işlemlerde güçlü referans noktası. VWAP üzerindeki fiyatlar yükseliş, altındaki fiyatlar düşüş sinyali. Günlük intraday için kullanılır.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        VWAP
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.vwap !== undefined && indicators.vwap !== null ? undefined : "dimmed"}>
+                                        {indicators.vwap !== undefined && indicators.vwap !== null ? formatCurrency(indicators.vwap) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
+
+                                  {/* BOL */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          Bollinger Bands - 5/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Volatilite ve potansiyel dönüş noktalarını gösterir. Bantların daralması (squeeze) büyük hareket öncesi sinyal verebilir.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        BOL
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.bbands !== undefined && indicators.bbands !== null ? undefined : "dimmed"}>
+                                        {indicators.bbands !== undefined && indicators.bbands !== null ? formatCurrency(indicators.bbands.valueMiddleBand) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
+
+                                  {/* PIVOT */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          Pivot Points - 5/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Kısa vadeli destek ve direnç seviyelerini belirler. R1, R2, R3 (direnç) ve S1, S2, S3 (destek) seviyeleri hedef ve stop-loss için kullanılır.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        PIVOT
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.pivot !== undefined && indicators.pivot !== null ? undefined : "dimmed"}>
+                                        {indicators.pivot !== undefined && indicators.pivot !== null ? formatCurrency(indicators.pivot.p) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
+
+                                  {/* RSI */}
+                                  <Tooltip
+                                    label={
+                                      <div>
+                                        <Text size="sm" fw={600} mb={4}>
+                                          RSI (Relative Strength Index) - 4/10
+                                        </Text>
+                                        <Text size="xs">
+                                          Kısa vadeli momentum tespiti için kullanılır. 4H grafikte sınırlı olsa da, daha küçük zaman dilimlerinde (15dk-1s) etkilidir.
+                                        </Text>
+                                      </div>
+                                    }
+                                    multiline
+                                    w={300}
+                                    withArrow
+                                  >
+                                    <Stack gap={2} align="center" style={{ flex: 1, cursor: "help" }}>
+                                      <Text size="xs" c="dimmed" fw={500}>
+                                        RSI
+                                      </Text>
+                                      <Text fw={600} size="sm" c={indicators.rsi !== undefined && indicators.rsi !== null ? undefined : "dimmed"}>
+                                        {indicators.rsi !== undefined && indicators.rsi !== null ? formatNumber(indicators.rsi, 2) : "?"}
+                                      </Text>
+                                    </Stack>
+                                  </Tooltip>
+                                </>
+                              )}
                             </Group>
                           </Paper>
                         )}
@@ -379,7 +847,12 @@ export default function AnalizPage() {
                       {/* Grid 3: Buttons */}
                       <Grid.Col span={{ base: 12, sm: 2 }}>
                         <Stack gap="sm" align="center" justify="center" style={{ height: '100%' }}>
-                          <Button variant="light" size="sm" fullWidth>
+                          <Button 
+                            variant="light" 
+                            size="sm" 
+                            fullWidth
+                            onClick={() => handleDetailClick(coin)}
+                          >
                             Detay
                           </Button>
                           <Button
@@ -387,7 +860,7 @@ export default function AnalizPage() {
                             size="sm"
                             fullWidth
                             onClick={() => handleAnalyze(coin, analysis)}
-                            disabled={!analysis || analyzingCoinId === coin.id}
+                            disabled={!analysis || analyzingCoinId === coin.id || !coinIndicators[coin.id]}
                             leftSection={analyzingCoinId === coin.id ? <Loader size="xs" /> : null}
                           >
                             {analyzingCoinId === coin.id ? "Analiz Yapılıyor..." : "Analiz Yap"}
@@ -467,6 +940,399 @@ export default function AnalizPage() {
           </Stack>
         </Container>
       </AppShellMain>
+
+      {/* Detail Modal */}
+      <Modal
+        opened={detailModalOpened}
+        onClose={closeDetailModal}
+        title={selectedCoin ? `${selectedCoin.name} Detayları` : "Detaylar"}
+        size="lg"
+      >
+        {selectedCoin && (
+          <Stack gap="md">
+            <Group gap="md">
+              <Avatar src={selectedCoin.image} alt={selectedCoin.name} size="lg" />
+              <Stack gap={4}>
+                <Text fw={700} size="lg">
+                  {selectedCoin.name}
+                </Text>
+                <Text c="dimmed" size="sm" tt="uppercase">
+                  {selectedCoin.symbol}
+                </Text>
+                <Text fw={600} size="xl">
+                  {formatCurrency(selectedCoin.current_price)}
+                </Text>
+              </Stack>
+            </Group>
+
+            <Divider />
+
+            {tradingStrategy === "swing" ? (
+              <>
+                {/* Swing Trade: MA, ATR, Fibonacci, RSI, ADX */}
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    Moving Averages (MA) - 8/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Trend yönü belirlemede temel araç. Uzun vadeli MA'lar (50, 100, 200) trend yönü için, kısa vadeli MA'lar (9, 21) giriş/çıkış sinyalleri için kullanılır.
+                  </Text>
+                  {maLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : maError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{maError}</Text>
+                    </Alert>
+                  ) : maValue !== null ? (
+                    <Text fw={600} size="lg">
+                      {formatCurrency(maValue)}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    ATR (Average True Range) - 8/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Risk yönetimi için kritik. Stop-loss ve pozisyon büyüklüğü ayarlamasında kullanılır. Volatiliteyi objektif olarak ölçer.
+                  </Text>
+                  {modalAtrLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalAtrError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalAtrError}</Text>
+                    </Alert>
+                  ) : modalAtrValue !== null ? (
+                    <Text fw={600} size="lg">
+                      {formatNumber(modalAtrValue, 2)}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    Fibonacci Retracement - 8/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Önemli destek ve direnç seviyelerini belirler. %61.8 seviyesi özellikle güçlü bir seviyedir. Hedef ve stop-loss belirlemede kullanılır.
+                  </Text>
+                  {modalFibLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalFibError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalFibError}</Text>
+                    </Alert>
+                  ) : modalFibValue !== null ? (
+                    <Stack gap="xs">
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">Değer:</Text>
+                        <Text fw={600} size="lg">
+                          {formatCurrency(modalFibValue.value)}
+                        </Text>
+                      </Group>
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">Trend:</Text>
+                        <Badge 
+                          color={modalFibValue.trend === "UPTREND" ? "green" : "red"} 
+                          variant="light"
+                        >
+                          {modalFibValue.trend}
+                        </Badge>
+                      </Group>
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">Başlangıç Fiyatı:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalFibValue.startPrice)}
+                        </Text>
+                      </Group>
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">Bitiş Fiyatı:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalFibValue.endPrice)}
+                        </Text>
+                      </Group>
+                    </Stack>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    RSI (Relative Strength Index) - 7/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Momentum tespitinde etkili. Aşırı alım (70+) ve aşırı satım (30-) bölgelerini gösterir. Trend dönüşlerinin erken işaretlerini verebilir.
+                  </Text>
+                  {modalRsiLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalRsiError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalRsiError}</Text>
+                    </Alert>
+                  ) : modalRsiValue !== null ? (
+                    <Text fw={600} size="lg">
+                      {formatNumber(modalRsiValue, 2)}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    ADX (Average Directional Index) - 7/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Trend gücünü objektif olarak ölçer. 25 üzeri güçlü trend, 20 altı zayıf trend. Trend yönü için MA ile birlikte kullanılmalıdır.
+                  </Text>
+                  {modalAdxLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalAdxError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalAdxError}</Text>
+                    </Alert>
+                  ) : modalAdxValue !== null ? (
+                    <Text fw={600} size="lg">
+                      {formatNumber(modalAdxValue, 2)}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+              </>
+            ) : (
+              <>
+                {/* Scalp Trade: ATR, VWAP, Bollinger Bands, Pivot Points, RSI */}
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    ATR (Average True Range) - 6/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Risk yönetimi için kritik. Scalping'te sık stop-loss ayarlamaları gerektiğinden ATR volatilite ölçümü çok önemlidir.
+                  </Text>
+                  {modalAtrLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalAtrError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalAtrError}</Text>
+                    </Alert>
+                  ) : modalAtrValue !== null ? (
+                    <Text fw={600} size="lg">
+                      {formatNumber(modalAtrValue, 2)}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    VWAP (Volume-Weighted Average Price) - 6/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Günlük işlemlerde güçlü referans noktası. VWAP üzerindeki fiyatlar yükseliş, altındaki fiyatlar düşüş sinyali. Günlük intraday için kullanılır.
+                  </Text>
+                  {modalVwapLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalVwapError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalVwapError}</Text>
+                    </Alert>
+                  ) : modalVwapValue !== null ? (
+                    <Text fw={600} size="lg">
+                      {formatCurrency(modalVwapValue)}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    Bollinger Bands - 5/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Volatilite ve potansiyel dönüş noktalarını gösterir. Bantların daralması (squeeze) büyük hareket öncesi sinyal verebilir.
+                  </Text>
+                  {modalBbandsLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalBbandsError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalBbandsError}</Text>
+                    </Alert>
+                  ) : modalBbandsValue !== null ? (
+                    <Stack gap="xs">
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">Üst Bant:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalBbandsValue.valueUpperBand)}
+                        </Text>
+                      </Group>
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">Orta Bant:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalBbandsValue.valueMiddleBand)}
+                        </Text>
+                      </Group>
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed">Alt Bant:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalBbandsValue.valueLowerBand)}
+                        </Text>
+                      </Group>
+                    </Stack>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    Pivot Points - 5/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Kısa vadeli destek ve direnç seviyelerini belirler. R1, R2, R3 (direnç) ve S1, S2, S3 (destek) seviyeleri hedef ve stop-loss için kullanılır.
+                  </Text>
+                  {modalPivotLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalPivotError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalPivotError}</Text>
+                    </Alert>
+                  ) : modalPivotValue !== null ? (
+                    <Stack gap="xs">
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed" fw={600}>Direnç Seviyeleri:</Text>
+                      </Group>
+                      <Group gap="md" pl="md">
+                        <Text size="sm" c="dimmed">R3:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalPivotValue.r3)}
+                        </Text>
+                      </Group>
+                      <Group gap="md" pl="md">
+                        <Text size="sm" c="dimmed">R2:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalPivotValue.r2)}
+                        </Text>
+                      </Group>
+                      <Group gap="md" pl="md">
+                        <Text size="sm" c="dimmed">R1:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalPivotValue.r1)}
+                        </Text>
+                      </Group>
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed" fw={600}>Pivot:</Text>
+                        <Text fw={600} size="sm">
+                          {formatCurrency(modalPivotValue.p)}
+                        </Text>
+                      </Group>
+                      <Group gap="md">
+                        <Text size="sm" c="dimmed" fw={600}>Destek Seviyeleri:</Text>
+                      </Group>
+                      <Group gap="md" pl="md">
+                        <Text size="sm" c="dimmed">S1:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalPivotValue.s1)}
+                        </Text>
+                      </Group>
+                      <Group gap="md" pl="md">
+                        <Text size="sm" c="dimmed">S2:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalPivotValue.s2)}
+                        </Text>
+                      </Group>
+                      <Group gap="md" pl="md">
+                        <Text size="sm" c="dimmed">S3:</Text>
+                        <Text fw={500} size="sm">
+                          {formatCurrency(modalPivotValue.s3)}
+                        </Text>
+                      </Group>
+                    </Stack>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+
+                <Divider />
+
+                <Stack gap="sm">
+                  <Text fw={600} size="md">
+                    RSI (Relative Strength Index) - 4/10
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    Kısa vadeli momentum tespiti için kullanılır. 4H grafikte sınırlı olsa da, daha küçük zaman dilimlerinde (15dk-1s) etkilidir.
+                  </Text>
+                  {modalRsiLoading ? (
+                    <Group gap="sm">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Yükleniyor...</Text>
+                    </Group>
+                  ) : modalRsiError ? (
+                    <Alert color="red" variant="light">
+                      <Text size="sm">{modalRsiError}</Text>
+                    </Alert>
+                  ) : modalRsiValue !== null ? (
+                    <Text fw={600} size="lg">
+                      {formatNumber(modalRsiValue, 2)}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">?</Text>
+                  )}
+                </Stack>
+              </>
+            )}
+          </Stack>
+        )}
+      </Modal>
     </AppShell>
   );
 }
