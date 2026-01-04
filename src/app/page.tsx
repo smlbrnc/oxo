@@ -33,31 +33,31 @@ export default function Home() {
         
         // WebSocket'i veriler yüklendikten sonra kur
         if (allCoins.length > 0) {
-          // Get all symbols for WebSocket (limit to first 100 to avoid URL length issues)
+      // Get all symbols for WebSocket (limit to first 100 to avoid URL length issues)
           const symbols = allCoins
-            .slice(0, 100)
-            .map((coin) => symbolToBinancePair(coin.symbol));
-          
-          // Create WebSocket connection for all tickers
-          const ws = createMultiTickerWebSocket(symbols, {
-            onTicker: (symbol, tickerData) => {
-              // Find corresponding coin and update
-              setCoins((prevCoins) => {
-                return prevCoins.map((coin) => {
-                  const coinBinanceSymbol = symbolToBinancePair(coin.symbol);
-                  if (coinBinanceSymbol === symbol) {
-                    return updateCoinFromTicker(coin, tickerData);
-                  }
-                  return coin;
-                });
-              });
-            },
-            onError: (error) => {
-              console.error("WebSocket error:", error);
-            },
+        .slice(0, 100)
+        .map((coin) => symbolToBinancePair(coin.symbol));
+      
+      // Create WebSocket connection for all tickers
+      const ws = createMultiTickerWebSocket(symbols, {
+        onTicker: (symbol, tickerData) => {
+          // Find corresponding coin and update
+          setCoins((prevCoins) => {
+            return prevCoins.map((coin) => {
+              const coinBinanceSymbol = symbolToBinancePair(coin.symbol);
+              if (coinBinanceSymbol === symbol) {
+                return updateCoinFromTicker(coin, tickerData);
+              }
+              return coin;
+            });
           });
+        },
+        onError: (error) => {
+          console.error("WebSocket error:", error);
+        },
+      });
 
-          wsRef.current = ws;
+      wsRef.current = ws;
         }
       } catch (error) {
         console.error("Error loading initial data:", error);
@@ -69,13 +69,13 @@ export default function Home() {
 
     init();
 
-    return () => {
+      return () => {
       mounted = false;
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+      };
   }, []); // Sadece component mount olduğunda çalışır
 
   const filteredAndSortedCoins = useMemo(() => {

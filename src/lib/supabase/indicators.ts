@@ -1,10 +1,15 @@
 import { createClient } from "./client";
+import { CryptoCoin } from "../types";
+import { getTicker24hr, symbolToBinancePair, tickerToCryptoCoin } from "../binance";
 
 export interface SwingIndicators {
   id: string;
   coin_id: string;
   coin_symbol: string;
   ma: number | null;
+  ma50: number | null;
+  ma100: number | null;
+  ma200: number | null;
   atr: number | null;
   fib_value: number | null;
   fib_trend: string | null;
@@ -197,5 +202,61 @@ export async function getScalpIndicatorsBySymbol(
   } catch (error) {
     console.error("Error in getScalpIndicatorsBySymbol:", error);
     return null;
+  }
+}
+
+/**
+ * Swing indicators ile birlikte coin verilerini getir
+ * Her coin için güncel fiyat bilgisi Binance'den alınır
+ */
+export async function getCoinsWithSwingIndicators(): Promise<Array<{
+  coin: CryptoCoin;
+  indicators: SwingIndicators;
+}>> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("swing_indicators")
+      .select("*")
+      .order("coin_symbol", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching swing indicators:", error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // Fetch current prices from Binance for all coins
+    const tickers = await Promise.all(
+      data.map(async (item) => {
+        try {
+          const binanceSymbol = symbolToBinancePair(item.coin_symbol);
+          return await getTicker24hr(binanceSymbol);
+        } catch (error) {
+          console.error(`Error fetching ticker for ${item.coin_symbol}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Map tickers to coins with indicators
+    const results = tickers
+      .map((ticker, index) => {
+        if (!ticker) return null;
+        
+        const coin = tickerToCryptoCoin(ticker, index + 1);
+        const indicators = data[index];
+        
+        return { coin, indicators };
+      })
+      .filter((item): item is { coin: CryptoCoin; indicators: SwingIndicators } => item !== null);
+
+    return results;
+  } catch (error) {
+    console.error("Error in getCoinsWithSwingIndicators:", error);
+    return [];
   }
 }
