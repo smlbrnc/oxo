@@ -450,37 +450,40 @@ export function createBinanceWebSocket(
   
   ws.onmessage = (event) => {
     try {
-      const message = JSON.parse(event.data);
+      const message = JSON.parse(event.data) as {
+        stream?: string;
+        data?: Record<string, unknown>;
+      };
       
       if (message.stream && message.data) {
         const streamName = message.stream;
-        const data = message.data;
+        const data = message.data as Record<string, unknown>;
         
         // Ticker stream: <symbol>@ticker
         if (streamName.includes("@ticker") && callbacks.onTicker) {
           // Binance WebSocket ticker format to REST API format conversion
           const tickerData: BinanceTicker24hr = {
-            symbol: data.s,
-            priceChange: data.P,
-            priceChangePercent: data.p,
-            weightedAvgPrice: data.w,
-            prevClosePrice: data.x,
-            lastPrice: data.c,
-            lastQty: data.Q,
-            bidPrice: data.b,
-            bidQty: data.B,
-            askPrice: data.a,
-            askQty: data.A,
-            openPrice: data.o,
-            highPrice: data.h,
-            lowPrice: data.l,
-            volume: data.v,
-            quoteVolume: data.q,
-            openTime: data.O,
-            closeTime: data.C,
-            firstId: data.F,
-            lastId: data.L,
-            count: data.n,
+            symbol: String(data.s ?? ""),
+            priceChange: String(data.P ?? "0"),
+            priceChangePercent: String(data.p ?? "0"),
+            weightedAvgPrice: String(data.w ?? "0"),
+            prevClosePrice: String(data.x ?? "0"),
+            lastPrice: String(data.c ?? "0"),
+            lastQty: String(data.Q ?? "0"),
+            bidPrice: String(data.b ?? "0"),
+            bidQty: String(data.B ?? "0"),
+            askPrice: String(data.a ?? "0"),
+            askQty: String(data.A ?? "0"),
+            openPrice: String(data.o ?? "0"),
+            highPrice: String(data.h ?? "0"),
+            lowPrice: String(data.l ?? "0"),
+            volume: String(data.v ?? "0"),
+            quoteVolume: String(data.q ?? "0"),
+            openTime: Number(data.O ?? 0),
+            closeTime: Number(data.C ?? 0),
+            firstId: Number(data.F ?? 0),
+            lastId: Number(data.L ?? 0),
+            count: Number(data.n ?? 0),
           };
           callbacks.onTicker(tickerData);
         } 
@@ -489,23 +492,25 @@ export function createBinanceWebSocket(
           // WebSocket depth update - incremental updates
           // data.b = bids array, data.a = asks array
           const orderBook: BinanceOrderBook = {
-            lastUpdateId: data.u || data.lastUpdateId || 0,
-            bids: data.b || [],
-            asks: data.a || [],
+            lastUpdateId: Number(data.u ?? data.lastUpdateId ?? 0),
+            bids: (Array.isArray(data.b) ? data.b : []) as [string, string][],
+            asks: (Array.isArray(data.a) ? data.a : []) as [string, string][],
           };
           callbacks.onDepth(orderBook);
         } 
         // Trade stream: <symbol>@trade
         else if (streamName.includes("@trade") && callbacks.onTrade) {
           // Convert WebSocket trade format to BinanceTrade format
+          const price = String(data.p ?? "0");
+          const qty = String(data.q ?? "0");
           const tradeData: BinanceTrade = {
-            id: data.t,
-            price: data.p,
-            qty: data.q,
-            quoteQty: (parseFloat(data.p) * parseFloat(data.q)).toString(),
-            time: data.T,
-            isBuyerMaker: data.m,
-            isBestMatch: data.M,
+            id: Number(data.t ?? 0),
+            price,
+            qty,
+            quoteQty: (parseFloat(price) * parseFloat(qty)).toString(),
+            time: Number(data.T ?? 0),
+            isBuyerMaker: Boolean(data.m),
+            isBestMatch: Boolean(data.M),
           };
           callbacks.onTrade(tradeData);
         }
@@ -555,38 +560,41 @@ export function createMultiTickerWebSocket(
   
   ws.onmessage = (event) => {
     try {
-      const message = JSON.parse(event.data);
+      const message = JSON.parse(event.data) as {
+        stream?: string;
+        data?: Record<string, unknown>;
+      };
       
       if (message.stream && message.data && callbacks.onTicker) {
         const streamName = message.stream;
-        const data = message.data;
+        const data = message.data as Record<string, unknown>;
         
         // Extract symbol from stream name (e.g., "btcusdt@ticker" -> "BTCUSDT")
         const symbol = streamName.split("@")[0].toUpperCase();
         
         // Convert WebSocket ticker format to BinanceTicker24hr format
         const tickerData: BinanceTicker24hr = {
-          symbol: data.s || symbol,
-          priceChange: data.P,
-          priceChangePercent: data.p,
-          weightedAvgPrice: data.w,
-          prevClosePrice: data.x,
-          lastPrice: data.c,
-          lastQty: data.Q,
-          bidPrice: data.b,
-          bidQty: data.B,
-          askPrice: data.a,
-          askQty: data.A,
-          openPrice: data.o,
-          highPrice: data.h,
-          lowPrice: data.l,
-          volume: data.v,
-          quoteVolume: data.q,
-          openTime: data.O,
-          closeTime: data.C,
-          firstId: data.F,
-          lastId: data.L,
-          count: data.n,
+          symbol: String(data.s ?? symbol),
+          priceChange: String(data.P ?? "0"),
+          priceChangePercent: String(data.p ?? "0"),
+          weightedAvgPrice: String(data.w ?? "0"),
+          prevClosePrice: String(data.x ?? "0"),
+          lastPrice: String(data.c ?? "0"),
+          lastQty: String(data.Q ?? "0"),
+          bidPrice: String(data.b ?? "0"),
+          bidQty: String(data.B ?? "0"),
+          askPrice: String(data.a ?? "0"),
+          askQty: String(data.A ?? "0"),
+          openPrice: String(data.o ?? "0"),
+          highPrice: String(data.h ?? "0"),
+          lowPrice: String(data.l ?? "0"),
+          volume: String(data.v ?? "0"),
+          quoteVolume: String(data.q ?? "0"),
+          openTime: Number(data.O ?? 0),
+          closeTime: Number(data.C ?? 0),
+          firstId: Number(data.F ?? 0),
+          lastId: Number(data.L ?? 0),
+          count: Number(data.n ?? 0),
         };
         
         callbacks.onTicker(symbol, tickerData);

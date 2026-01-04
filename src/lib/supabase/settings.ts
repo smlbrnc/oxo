@@ -31,7 +31,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
 export async function createUserSettings(
   userId: string,
   settings: Partial<UserSettings> = {}
-): Promise<{ data: UserSettings | null; error: unknown }> {
+): Promise<{ data: UserSettings | null; error: Error | null }> {
   const supabase = createClient();
 
   const defaultSettings: Omit<UserSettings, "id" | "updated_at"> = {
@@ -53,7 +53,7 @@ export async function createUserSettings(
 
   if (error) {
     console.error("Error creating user settings:", error);
-    return { data: null, error };
+    return { data: null, error: error as Error };
   }
 
   return { data, error: null };
@@ -65,7 +65,7 @@ export async function createUserSettings(
 export async function updateUserSettings(
   userId: string,
   settings: Partial<Omit<UserSettings, "id" | "user_id" | "updated_at">>
-): Promise<{ data: UserSettings | null; error: unknown }> {
+): Promise<{ data: UserSettings | null; error: Error | null }> {
   const supabase = createClient();
 
   // Check if settings exist, if not create them
@@ -83,7 +83,7 @@ export async function updateUserSettings(
 
   if (error) {
     console.error("Error updating user settings:", error);
-    return { data: null, error };
+    return { data: null, error: error as Error };
   }
 
   return { data, error: null };
