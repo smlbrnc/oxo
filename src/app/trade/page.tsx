@@ -22,50 +22,37 @@ import {
   Divider,
   Box,
 } from "@mantine/core";
-import { IconAlertCircle, IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
+import { IconAlertCircle, IconTrendingUp, IconTrendingDown, IconSettings, IconRestore } from "@tabler/icons-react";
 import { getAllLatestSignals, storedSignalToSignalResult } from "@/lib/supabase/signals";
-import { SignalResult } from "@/lib/signal-engine";
+import { SignalResult, calculateSignal } from "@/lib/signal-engine";
+import { SignalConfig, DEFAULT_SIGNAL_CONFIG } from "@/lib/signal-config";
 import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker, getCoinById } from "@/lib/binance";
+import { getCoinsWithSwingIndicators } from "@/lib/supabase/indicators";
 import { CryptoCoin } from "@/lib/types";
+import { Button, Drawer, Slider, Switch, NumberInput, Accordion, ActionIcon, Tooltip } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 
 export default function TradePage() {
   const { user } = useAuth();
   const [signals, setSignals] = useState<SignalResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState<SignalConfig>(DEFAULT_SIGNAL_CONFIG);
+  const [opened, { open, close }] = useDisclosure(false);
   const wsRef = useRef<WebSocket | null>(null);
   const signalsRef = useRef<SignalResult[]>([]);
 
-  const loadSignals = useCallback(async () => {
+  const loadSignals = useCallback(async (currentConfig: SignalConfig) => {
     setLoading(true);
     try {
-      // Veritabanından en son hesaplanmış signal'ları getir
-      const storedSignals = await getAllLatestSignals();
+      // Veritabanından en son hesaplanmış verileri ve coinleri al
+      const coinsWithIndicators = await getCoinsWithSwingIndicators();
       
-      if (storedSignals.length === 0) {
-        setSignals([]);
-        setLoading(false);
-        return;
-      }
-
-      // Her signal için coin bilgilerini getir (fiyat güncellemesi için)
-      const signalsWithCoins = await Promise.all(
-        storedSignals.map(async (stored) => {
-          try {
-            const coin = await getCoinById(stored.coin_symbol.toLowerCase());
-            if (coin) {
-              return storedSignalToSignalResult(stored, coin);
-            }
-            return null;
-          } catch (error) {
-            console.error(`Error fetching coin ${stored.coin_symbol}:`, error);
-            return null;
-          }
-        })
+      const calculatedSignals = coinsWithIndicators.map(({ coin, indicators }) =>
+        calculateSignal(indicators, coin, currentConfig)
       );
-
-      const validSignals = signalsWithCoins.filter(
-        (s): s is SignalResult => s !== null
-      );
+      
+      // Filter: only show signals with score ≥ watchlist threshold
+      const validSignals = calculatedSignals.filter((s) => s.showInUI);
 
       // Sort by score (highest first)
       validSignals.sort((a, b) => b.score - a.score);
@@ -73,7 +60,7 @@ export default function TradePage() {
       setSignals(validSignals);
       signalsRef.current = validSignals;
       
-      // Setup WebSocket for price updates (sadece fiyat güncellemesi)
+      // Setup WebSocket for price updates
       if (validSignals.length > 0) {
         const symbols = validSignals.map((s) => symbolToBinancePair(s.coin.symbol));
         
@@ -87,8 +74,9 @@ export default function TradePage() {
               prev.map((signal) => {
                 const coinBinanceSymbol = symbolToBinancePair(signal.coin.symbol);
                 if (coinBinanceSymbol === symbol) {
-                  // Sadece fiyat güncelle (signal hesaplama yapma, cron job yapacak)
                   const updatedCoin = updateCoinFromTicker(signal.coin, tickerData);
+                  // Fiyat değiştikçe sinyali de config'e göre tekrar hesapla
+                  // Ancak indicators verisini saklamak gerekiyor. Şimdilik sadece fiyat güncelle.
                   return { ...signal, coin: updatedCoin };
                 }
                 return signal;
@@ -111,7 +99,7 @@ export default function TradePage() {
 
   useEffect(() => {
     if (user?.id) {
-      loadSignals();
+      loadSignals(config);
     } else {
       setSignals([]);
       setLoading(false);
@@ -123,7 +111,11 @@ export default function TradePage() {
         wsRef.current = null;
       }
     };
-  }, [user?.id, loadSignals]);
+  }, [user?.id, loadSignals, config]);
+
+  const resetConfig = () => {
+    setConfig(DEFAULT_SIGNAL_CONFIG);
+  };
 
 
   if (!user) {
@@ -143,17 +135,117 @@ export default function TradePage() {
   }
 
   return (
-    <AppShell header={{ height: 110 }} padding={0}>
-      <HeaderMenu />
-      <AppShellMain className="pt-4">
-        <Container size="xl">
-          <Stack gap="xl">
-            <div>
-              <Title order={1}>Swing Trade Sinyalleri</Title>
-              <Text c="dimmed" size="sm" mt="xs">
-                Signal.md kurallarına göre hesaplanmış profesyonel trade sinyalleri (4H zaman dilimi)
-              </Text>
-            </div>
+      <AppShell header={{ height: 110 }} padding={0}>
+        <HeaderMenu />
+        <AppShellMain className="pt-4">
+          <Container size="xl">
+            <Stack gap="xl">
+              <Group justify="space-between" align="flex-start">
+                <div>
+                  <Title order={1}>Swing Trade Sinyalleri</Title>
+                  <Text c="dimmed" size="sm" mt="xs">
+                    Signal.md kurallarına göre hesaplanmış profesyonel trade sinyalleri (4H zaman dilimi)
+                  </Text>
+                </div>
+                <Group>
+                  <Tooltip label="Sinyal Ayarları">
+                    <Button 
+                      leftSection={<IconSettings size={18} />} 
+                      variant="light" 
+                      onClick={open}
+                    >
+                      Ayarlar
+                    </Button>
+                  </Tooltip>
+                </Group>
+              </Group>
+
+              {/* Sinyal Ayarları Drawer */}
+              <Drawer
+                opened={opened}
+                onClose={close}
+                title="Sinyal Filtreleme ve Esnetme"
+                position="right"
+                size="md"
+              >
+                <Stack gap="md">
+                  <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
+                    Bu ayarlar sinyal skorlarını anlık olarak etkiler. Kuralları gevşeterek daha fazla "LONG/SHORT" sinyali görebilirsiniz.
+                  </Alert>
+
+                  <Accordion defaultValue="thresholds">
+                    <Accordion.Item value="thresholds">
+                      <Accordion.Control>Karar Eşikleri</Accordion.Control>
+                      <Accordion.Panel>
+                        <Stack gap="sm">
+                          <Text size="sm">İŞLEM Skoru (Min): {config.thresholds.action}</Text>
+                          <Slider 
+                            value={config.thresholds.action} 
+                            onChange={(v) => setConfig({ ...config, thresholds: { ...config.thresholds, action: v } })}
+                            min={50} max={90} step={1}
+                          />
+                          <Text size="sm" mt="md">İZLEME Skoru (Min): {config.thresholds.watchlist}</Text>
+                          <Slider 
+                            value={config.thresholds.watchlist} 
+                            onChange={(v) => setConfig({ ...config, thresholds: { ...config.thresholds, watchlist: v } })}
+                            min={30} max={70} step={1}
+                          />
+                        </Stack>
+                      </Accordion.Panel>
+                    </Accordion.Item>
+
+                    <Accordion.Item value="trend">
+                      <Accordion.Control>Trend Hassasiyeti</Accordion.Control>
+                      <Accordion.Panel>
+                        <Stack gap="sm">
+                          <Text size="sm">Minimum ADX Gücü: {config.trend.adxMinimum}</Text>
+                          <Slider 
+                            value={config.trend.adxMinimum} 
+                            onChange={(v) => setConfig({ ...config, trend: { ...config.trend, adxMinimum: v } })}
+                            min={10} max={35}
+                          />
+                          <Switch 
+                            label="Phase Lag Gevşetme (Reversal)" 
+                            checked={config.trend.maPhaseLagGevşetme}
+                            onChange={(e) => setConfig({ ...config, trend: { ...config.trend, maPhaseLagGevşetme: e.currentTarget.checked } })}
+                            mt="sm"
+                          />
+                        </Stack>
+                      </Accordion.Panel>
+                    </Accordion.Item>
+
+                    <Accordion.Item value="structure">
+                      <Accordion.Control>Yapı (Fibonacci) Ayarları</Accordion.Control>
+                      <Accordion.Panel>
+                        <Stack gap="sm">
+                          <Switch 
+                            label="Hedefe Yaklaştıkça Puanı Düşür" 
+                            checked={config.structure.kademeliAzalma}
+                            onChange={(e) => setConfig({ ...config, structure: { ...config.structure, kademeliAzalma: e.currentTarget.checked } })}
+                          />
+                          <Text size="sm" mt="sm">Yanlış Taraf Toleransı (ATR): {config.structure.fibToleranceATR}</Text>
+                          <Slider 
+                            value={config.structure.fibToleranceATR} 
+                            onChange={(v) => setConfig({ ...config, structure: { ...config.structure, fibToleranceATR: v } })}
+                            min={1} max={10}
+                          />
+                        </Stack>
+                      </Accordion.Panel>
+                    </Accordion.Item>
+                  </Accordion>
+
+                  <Divider />
+                  <Button 
+                    leftSection={<IconRestore size={18} />} 
+                    variant="outline" 
+                    color="gray" 
+                    fullWidth
+                    onClick={resetConfig}
+                  >
+                    Varsayılanlara Dön
+                  </Button>
+                </Stack>
+              </Drawer>
 
             {loading ? (
               <Paper p="xl" withBorder>
@@ -309,7 +401,11 @@ function SignalCard({ signal }: { signal: SignalResult }) {
               : `${signal.structure.distanceInATR.toFixed(2)} ATR mesafede seviyeden`}
           </Text>
           <Text size="xs" fw={500}>
-            Risk: {signal.risk.assessment === "SAFE" ? "GÜVENLİ" : signal.risk.assessment === "ELEVATED" ? "YÜKSELMİŞ" : "AŞIRI"} ({signal.risk.stopLossRisk.toFixed(2)}% SL)
+            Risk: {signal.risk.assessment === "SAFE" 
+              ? (signal.risk.atrPercent < 1.0 ? "ÇOK GÜVENLİ" : "GÜVENLİ")
+              : signal.risk.assessment === "ELEVATED" 
+              ? (signal.risk.atrPercent >= 2.0 ? "YÜKSELMİŞ" : "ORTA")
+              : "AŞIRI"} ({signal.risk.stopLossRisk.toFixed(2)}% SL)
           </Text>
         </Stack>
 
