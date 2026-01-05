@@ -2602,3 +2602,5 @@
 [2026-01-05 16:28:02] ✓ Başarılı (HTTP 200)
   Coin: XRP, Endpoint: Bollinger Bands, Progress: 3/5
 [2026-01-05 16:28:24] Edge function çağrılıyor...
+[2026-01-05 16:28:24] ✓ Başarılı (HTTP 200)
+  Coin: XRP, Endpoint: Pivot Points, Progress: 4/5
