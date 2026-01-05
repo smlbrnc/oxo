@@ -76,7 +76,17 @@ function evaluateTrend(indicators: SwingIndicators, price: number) {
   const priceAboveMA100 = price > ma100;
   
   if (bullishAlignment && priceAboveMA100) {
-    const points = adx >= 40 ? 40 : 30; // Perfect MA + Strong/Moderate ADX
+    // Lineer ADX puanlama: ADX 25 = 30 puan, ADX 40+ = 40 puan
+    // ADX 25-40 arası lineer artış
+    let points = 30;
+    if (adx >= 40) {
+      points = 40;
+    } else if (adx > 25) {
+      // 25-40 arası lineer: (adx - 25) / (40 - 25) * (40 - 30) + 30
+      points = 30 + Math.round(((adx - 25) / 15) * 10);
+    }
+    // ADX 25 ise 30 puan (minimum geçerli değer)
+    
     const adxStrength: "STRONG" | "MODERATE" = adx >= 40 ? "STRONG" : "MODERATE";
     return {
       context: "BULLISH" as const,
@@ -93,7 +103,15 @@ function evaluateTrend(indicators: SwingIndicators, price: number) {
   const priceBelowMA100 = price < ma100;
   
   if (bearishAlignment && priceBelowMA100) {
-    const points = adx >= 40 ? 40 : 30;
+    // Lineer ADX puanlama: ADX 25 = 30 puan, ADX 40+ = 40 puan
+    let points = 30;
+    if (adx >= 40) {
+      points = 40;
+    } else if (adx > 25) {
+      // 25-40 arası lineer: (adx - 25) / (40 - 25) * (40 - 30) + 30
+      points = 30 + Math.round(((adx - 25) / 15) * 10);
+    }
+    
     const adxStrength: "STRONG" | "MODERATE" = adx >= 40 ? "STRONG" : "MODERATE";
     return {
       context: "BEARISH" as const,
@@ -117,7 +135,7 @@ function evaluateTrend(indicators: SwingIndicators, price: number) {
 }
 
 // ============================================
-// STEP 2: MOMENTUM CONTROL (RSI)
+// STEP 2: MOMENTUM CONTROL (RSI) - Dereceli Puanlama
 // ============================================
 function evaluateMomentum(rsi: number | null, context: "BULLISH" | "BEARISH" | "NEUTRAL") {
   if (context === "NEUTRAL" || rsi === null) {
@@ -125,31 +143,75 @@ function evaluateMomentum(rsi: number | null, context: "BULLISH" | "BEARISH" | "
   }
   
   if (context === "BULLISH") {
+    // Ideal zone: 40-60 (25 points)
     if (rsi >= 40 && rsi <= 60) {
       return { points: 25, zone: "HEALTHY" as const, status: "Sağlıklı yükseliş momentumu" };
-    } else if (rsi > 60 && rsi <= 70) {
-      return { points: 15, zone: "STRONG" as const, status: "Güçlü yükseliş momentumu" };
-    } else if (rsi > 70) {
-      return { points: 5, zone: "OVERBOUGHT" as const, status: "Aşırı alım uyarısı" };
-    } else {
-      return { points: 0, zone: "WEAK" as const, status: "Zayıf momentum (RSI < 40)" };
     }
+    
+    // Strong zone: 60-70 (dereceli puanlama)
+    if (rsi > 60 && rsi <= 70) {
+      // 60-65 arası: 15-20 puan, 65-70 arası: 10-15 puan
+      const points = rsi <= 65 ? 20 - ((rsi - 60) * 1) : 15 - ((rsi - 65) * 1);
+      return { points: Math.max(10, Math.round(points)), zone: "STRONG" as const, status: "Güçlü yükseliş momentumu" };
+    }
+    
+    // Overbought zone: >70 (dereceli puanlama)
+    if (rsi > 70) {
+      // 70-75 arası: 5-10 puan, 75+ : 0-5 puan
+      const points = rsi <= 75 ? 10 - ((rsi - 70) * 1) : Math.max(0, 5 - ((rsi - 75) * 0.5));
+      return { points: Math.max(0, Math.round(points)), zone: "OVERBOUGHT" as const, status: "Aşırı alım uyarısı" };
+    }
+    
+    // Weak zone: <40 (dereceli puanlama)
+    // 30-40 arası: 5-15 puan, <30: 0-5 puan
+    if (rsi >= 30 && rsi < 40) {
+      const points = 15 - ((40 - rsi) * 1);
+      return { points: Math.max(5, Math.round(points)), zone: "WEAK" as const, status: "Zayıf momentum (RSI < 40)" };
+    }
+    
+    // <30: çok zayıf
+    return { points: 0, zone: "WEAK" as const, status: "Çok zayıf momentum (RSI < 30)" };
   }
   
-  // BEARISH context
+  // BEARISH context - Dereceli puanlama
+  // Ideal zone: 40-60 (25 points)
   if (rsi >= 40 && rsi <= 60) {
     return { points: 25, zone: "HEALTHY" as const, status: "Sağlıklı düşüş momentumu" };
-  } else if (rsi >= 30 && rsi < 40) {
-    return { points: 15, zone: "STRONG" as const, status: "Güçlü düşüş momentumu" };
-  } else if (rsi < 30) {
-    return { points: 5, zone: "OVERSOLD" as const, status: "Aşırı satım uyarısı" };
-  } else {
-    return { points: 0, zone: "WEAK" as const, status: "Zayıf düşüş momentumu (RSI > 60)" };
   }
+  
+  // Strong zone: 30-40 (dereceli puanlama)
+  if (rsi >= 30 && rsi < 40) {
+    // 35-40 arası: 20 puan, 30-35 arası: 15 puan
+    const points = rsi >= 35 ? 20 - ((40 - rsi) * 1) : 15 - ((35 - rsi) * 1);
+    return { points: Math.max(10, Math.round(points)), zone: "STRONG" as const, status: "Güçlü düşüş momentumu" };
+  }
+  
+  // Oversold zone: <30 (dereceli puanlama)
+  if (rsi < 30) {
+    // 20-30 arası: 5-10 puan, <20: 0-5 puan
+    const points = rsi >= 20 ? 10 - ((30 - rsi) * 0.5) : Math.max(0, 5 - ((20 - rsi) * 0.5));
+    return { points: Math.max(0, Math.round(points)), zone: "OVERSOLD" as const, status: "Aşırı satım uyarısı" };
+  }
+  
+  // Weak zone: >60 (dereceli puanlama - BEARISH için zayıf)
+  // 60-70 arası: 10-15 puan, 70-80 arası: 5-10 puan, 80+: 0-5 puan
+  if (rsi > 60 && rsi <= 70) {
+    const points = 15 - ((rsi - 60) * 0.5);
+    return { points: Math.max(10, Math.round(points)), zone: "WEAK" as const, status: "Zayıf düşüş momentumu (RSI 60-70)" };
+  }
+  
+  if (rsi > 70 && rsi <= 80) {
+    const points = 10 - ((rsi - 70) * 0.5);
+    return { points: Math.max(5, Math.round(points)), zone: "WEAK" as const, status: "Zayıf düşüş momentumu (RSI 70-80)" };
+  }
+  
+  // >80: çok zayıf
+  const points = Math.max(0, 5 - ((rsi - 80) * 0.25));
+  return { points: Math.max(0, Math.round(points)), zone: "WEAK" as const, status: "Çok zayıf düşüş momentumu (RSI > 80)" };
 }
 
 // ============================================
-// STEP 3: STRUCTURE VALIDATION (FIBONACCI)
+// STEP 3: STRUCTURE VALIDATION (FIBONACCI) - Dereceli Puanlama
 // ============================================
 function evaluateStructure(
   price: number,
@@ -173,6 +235,28 @@ function evaluateStructure(
   // LONG: Price must be ABOVE 61.8%
   if (context === "BULLISH") {
     if (price < fib618) {
+      // Yanlış tarafta ama yakınsa kısmi puan ver
+      // 0-1 ATR mesafede: 5-10 puan, 1-2 ATR: 0-5 puan, 2+ ATR: 0 puan
+      if (distanceInATR <= 1) {
+        const points = Math.max(5, Math.round(10 - (distanceInATR * 5)));
+        return {
+          points,
+          fibCheck: "INVALID" as const,
+          distance,
+          distanceInATR,
+          forceWait: false,
+        };
+      }
+      if (distanceInATR <= 2) {
+        const points = Math.max(0, Math.round(5 - ((distanceInATR - 1) * 5)));
+        return {
+          points,
+          fibCheck: "INVALID" as const,
+          distance,
+          distanceInATR,
+          forceWait: false,
+        };
+      }
       return {
         points: 0,
         fibCheck: "INVALID" as const,
@@ -182,7 +266,7 @@ function evaluateStructure(
       };
     }
     
-    // Valid but fragile?
+    // Valid but fragile? (<1 ATR)
     if (distanceInATR < 1) {
       return {
         points: 0,
@@ -193,9 +277,16 @@ function evaluateStructure(
       };
     }
     
-    // Valid and safe
+    // Valid and safe - dereceli puanlama
+    // 1-2 ATR: 15-20 puan, 2-3 ATR: 20 puan (maksimum), 3+ ATR: 20 puan
+    let points = 20;
+    if (distanceInATR >= 1 && distanceInATR < 2) {
+      // 1 ATR'de 15 puan, 2 ATR'de 20 puan
+      points = 15 + Math.round((distanceInATR - 1) * 5);
+    }
+    
     return {
-      points: 20,
+      points: Math.min(20, points),
       fibCheck: "VALID_SAFE" as const,
       distance,
       distanceInATR,
@@ -205,6 +296,28 @@ function evaluateStructure(
   
   // SHORT: Price must be BELOW 61.8%
   if (price > fib618) {
+    // Yanlış tarafta ama yakınsa kısmi puan ver
+    // 0-1 ATR mesafede: 5-10 puan, 1-2 ATR: 0-5 puan, 2+ ATR: 0 puan
+    if (distanceInATR <= 1) {
+      const points = Math.max(5, Math.round(10 - (distanceInATR * 5)));
+      return {
+        points,
+        fibCheck: "INVALID" as const,
+        distance,
+        distanceInATR,
+        forceWait: false,
+      };
+    }
+    if (distanceInATR <= 2) {
+      const points = Math.max(0, Math.round(5 - ((distanceInATR - 1) * 5)));
+      return {
+        points,
+        fibCheck: "INVALID" as const,
+        distance,
+        distanceInATR,
+        forceWait: false,
+      };
+    }
     return {
       points: 0,
       fibCheck: "INVALID" as const,
@@ -214,6 +327,7 @@ function evaluateStructure(
     };
   }
   
+  // Valid but fragile? (<1 ATR)
   if (distanceInATR < 1) {
     return {
       points: 0,
@@ -224,8 +338,15 @@ function evaluateStructure(
     };
   }
   
+  // Valid and safe - dereceli puanlama
+  let points = 20;
+  if (distanceInATR >= 1 && distanceInATR < 2) {
+    // 1 ATR'de 15 puan, 2 ATR'de 20 puan
+    points = 15 + Math.round((distanceInATR - 1) * 5);
+  }
+  
   return {
-    points: 20,
+    points: Math.min(20, points),
     fibCheck: "VALID_SAFE" as const,
     distance,
     distanceInATR,
