@@ -1,6 +1,14 @@
-import { createClient } from "./client";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CryptoCoin } from "../types";
 import { getTicker24hr, symbolToBinancePair, tickerToCryptoCoin } from "../binance";
+
+// API/Server kullanımı için güvenli client
+function getAdminClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
 export interface SwingIndicators {
   id: string;
@@ -59,7 +67,7 @@ export async function getSwingIndicatorsFromCache(
   coinId: string
 ): Promise<SwingIndicators | null> {
   try {
-    const supabase = createClient();
+    const supabase = getAdminClient();
     const { data, error } = await supabase
       .from("swing_indicators")
       .select("*")
@@ -85,7 +93,7 @@ export async function getScalpIndicatorsFromCache(
   coinId: string
 ): Promise<ScalpIndicators | null> {
   try {
-    const supabase = createClient();
+    const supabase = getAdminClient();
     const { data, error } = await supabase
       .from("scalp_indicators")
       .select("*")
@@ -133,7 +141,7 @@ export async function getAllCoinsWithIndicators(
   strategy: "swing" | "scalp"
 ): Promise<Array<{ coin_id: string; coin_symbol: string }>> {
   try {
-    const supabase = createClient();
+    const supabase = getAdminClient();
     const tableName = strategy === "swing" ? "swing_indicators" : "scalp_indicators";
     
     const { data, error } = await supabase
@@ -214,7 +222,7 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
   indicators: SwingIndicators;
 }>> {
   try {
-    const supabase = createClient();
+    const supabase = getAdminClient();
     const { data, error } = await supabase
       .from("swing_indicators")
       .select("*")
@@ -230,39 +238,50 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
       return [];
     }
 
-    console.log(`[Indicators] Supabase'den ${data.length} adet indicator verisi alındı. Binance fiyatları çekiliyor...`);
-
     // Fetch current prices from Binance for all coins
-    const tickers = await Promise.all(
-      data.map(async (item) => {
+    const results = await Promise.all(
+      data.map(async (item, index) => {
         try {
           const binanceSymbol = symbolToBinancePair(item.coin_symbol);
           const ticker = await getTicker24hr(binanceSymbol);
-          if (!ticker) {
-            console.warn(`[Indicators] ${item.coin_symbol} için Binance ticker alınamadı.`);
+          
+          if (ticker) {
+            return {
+              coin: tickerToCryptoCoin(ticker, index + 1),
+              indicators: item
+            };
           }
-          return ticker;
+          
+          // ⚠️ BINANCE FALLBACK: Eğer Binance'den fiyat alınamazsa veritabanındaki veriyi kullan
+          console.warn(`[Indicators] ${item.coin_symbol} için Binance ticker alınamadı, fallback kullanılıyor.`);
+          
+          // Sahte bir CryptoCoin objesi oluştur (en azından sinyal hesaplanabilsin diye)
+          const fallbackCoin: CryptoCoin = {
+            id: item.coin_id,
+            symbol: item.coin_symbol.toLowerCase(),
+            name: item.coin_symbol.toUpperCase(),
+            image: "",
+            current_price: item.ma || 0, // En azından MA değerini baz al (veya 0)
+            market_cap: 0,
+            market_cap_rank: index + 1,
+            price_change_percentage_24h: 0,
+            total_volume: 0,
+            high_24h: 0,
+            low_24h: 0,
+            circulating_supply: 0,
+            total_supply: 0,
+            last_updated: new Date().toISOString()
+          };
+
+          return { coin: fallbackCoin, indicators: item };
         } catch (err) {
-          console.error(`[Indicators] ${item.coin_symbol} için Binance hatası:`, err);
+          console.error(`[Indicators] ${item.coin_symbol} işlenirken hata:`, err);
           return null;
         }
       })
     );
 
-    // Map tickers to coins with indicators
-    const results = tickers
-      .map((ticker, index) => {
-        if (!ticker) return null;
-        
-        const coin = tickerToCryptoCoin(ticker, index + 1);
-        const indicators = data[index];
-        
-        return { coin, indicators };
-      })
-      .filter((item): item is { coin: CryptoCoin; indicators: SwingIndicators } => item !== null);
-
-    console.log(`[Indicators] Toplam ${results.length} coin başarıyla hazırlandı.`);
-    return results;
+    return results.filter((r): r is { coin: CryptoCoin; indicators: SwingIndicators } => r !== null);
   } catch (error) {
     console.error("Error in getCoinsWithSwingIndicators:", error);
     return [];
