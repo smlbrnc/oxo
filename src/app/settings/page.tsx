@@ -29,33 +29,47 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-
-  const loadSettings = useCallback(async () => {
-    if (!user?.id) return;
-
-    setLoading(true);
-    try {
-      const userSettings = await getOrCreateUserSettings(user.id);
-      setSettings(userSettings);
-      
-      // Sync color scheme with settings
-      if (userSettings.color_mode !== "auto") {
-        setColorScheme(userSettings.color_mode);
-      }
-    } catch (error) {
-      console.error("Error loading settings:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, setColorScheme]);
+  const settingsLoaded = useState(false)[0]; // This is a bit hacky, let's use a proper state
 
   useEffect(() => {
-    if (user?.id) {
-      loadSettings();
-    } else {
-      setLoading(false);
+    let mounted = true;
+
+    async function fetchSettings() {
+      if (!user?.id) return;
+      
+      try {
+        const userSettings = await getOrCreateUserSettings(user.id);
+        if (mounted) {
+          setSettings(userSettings);
+          setLoading(false);
+          
+          // Sync color scheme with settings - only if different
+          // We don't include colorScheme in dependencies to avoid loops
+          if (userSettings.color_mode !== "auto") {
+            setColorScheme(userSettings.color_mode);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error);
+        if (mounted) setLoading(false);
+      }
     }
-  }, [user?.id, loadSettings]);
+
+    if (user?.id) {
+      fetchSettings();
+    } else {
+      // If no user after 2 seconds, stop loading
+      const timer = setTimeout(() => {
+        if (mounted && !user?.id) setLoading(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const handleColorModeChange = async (checked: boolean) => {
     if (!user?.id || !settings) return;
@@ -221,7 +235,7 @@ export default function SettingsPage() {
               <Paper p="md" withBorder radius="md">
                 <Stack gap="sm">
                   <Title order={3}>Email Ayarları</Title>
-                  <Tooltip label="Email bildirimleri açık olduğunda önemli güncellemeler email adresinize gönderilir" refProp="rootRef">
+                  <Tooltip label="Email bildirimleri açık olduğunda önemli güncellemeler email adresinize gönderilir">
                     <Group justify="space-between" align="center" wrap="nowrap">
                       <Stack gap={4} style={{ flex: 1 }}>
                         <Text fw={500}>Email Bildirimleri</Text>

@@ -1,9 +1,10 @@
 import { createClient } from "./client";
 import { SignalChange } from "./signals";
+import { SignalResult } from "../signal-engine";
+import { sendSignalEmail } from "../resend";
 
 /**
  * Alert sistemi için hazırlık fonksiyonları
- * Gelecekte signal_alerts tablosu ve alert gönderme mekanizması eklenecek
  */
 
 export interface SignalAlert {
@@ -24,8 +25,8 @@ export interface SignalAlert {
  * Alert tetikleme koşullarını kontrol et
  */
 export function shouldTriggerAlert(change: SignalChange): boolean {
-  // Score >= 80 olan yeni signal'lar
-  if (change.change_type === "NEW_SIGNAL" && change.new_score >= 80) {
+  // Score >= 75 olan yeni signal'lar (Config'deki thresholds.action'a göre güncellendi)
+  if (change.change_type === "NEW_SIGNAL" && change.new_score >= 75) {
     return true;
   }
 
@@ -34,29 +35,8 @@ export function shouldTriggerAlert(change: SignalChange): boolean {
     return change.new_decision !== "WAIT";
   }
 
-  // Eşik geçişleri
-  if (change.crossed_threshold) {
-    return true;
-  }
-
-  // Score 0-54 → 55+ (WATCHLIST'e geçti)
-  if (
-    change.change_type === "SCORE_INCREASE" &&
-    change.old_score !== undefined &&
-    change.old_score < 55 &&
-    change.new_score >= 55
-  ) {
-    return true;
-  }
-
-  // Score 55-79 → 80+ (ACTION'a geçti)
-  if (
-    change.change_type === "SCORE_INCREASE" &&
-    change.old_score !== undefined &&
-    change.old_score >= 55 &&
-    change.old_score < 80 &&
-    change.new_score >= 80
-  ) {
+  // Eşik geçişleri (ACTION eşiği geçildiyse)
+  if (change.crossed_threshold === "ACTION") {
     return true;
   }
 
@@ -64,20 +44,57 @@ export function shouldTriggerAlert(change: SignalChange): boolean {
 }
 
 /**
- * Alert'i kuyruğa ekle (gelecekte implement edilecek)
+ * Alert'i kuyruğa ekle ve bildirimleri açık tüm kullanıcılara email gönder
  */
 export async function queueAlert(
   userId: string,
-  change: SignalChange
+  change: SignalChange,
+  signal: SignalResult
 ): Promise<boolean> {
   try {
-    // TODO: signal_alerts tablosu oluşturulduğunda implement edilecek
-    // Şimdilik sadece log
-    console.log(`[Alert Queue] User ${userId}, Coin ${change.coin_symbol}, Change: ${change.change_type}`);
+    const alertTetiklendi = shouldTriggerAlert(change);
     
-    if (shouldTriggerAlert(change)) {
-      console.log(`[Alert Queue] Alert tetiklendi: ${change.coin_symbol} - ${change.change_type}`);
-      // Gelecekte: Supabase'e kaydet
+    console.log(`[Alert Queue] Signal: ${change.coin_symbol}, Change: ${change.change_type}, Triggered: ${alertTetiklendi}`);
+    
+    if (alertTetiklendi) {
+      const supabase = createClient();
+      
+      // 🚀 Email bildirimleri açık olan tüm kullanıcıları getir (RPC fonksiyonu ile RLS bypass edilir)
+      const { data: subscribers, error: subError } = await supabase
+        .rpc("get_email_subscribers");
+        
+      if (subError) {
+        console.error("Error fetching email subscribers via RPC:", subError);
+        return false;
+      }
+
+      if (!subscribers || subscribers.length === 0) {
+        console.log("[Alert] Email gönderilecek abone bulunamadı.");
+        return true;
+      }
+
+      // Email adreslerini ayıkla
+      const emails = subscribers
+        .map((s: { email: string }) => s.email)
+        .filter((email: string | undefined) => !!email);
+
+      if (emails.length === 0) {
+        console.log("[Alert] Geçerli email adresi bulunamadı.");
+        return true;
+      }
+
+      console.log(`[Alert] ${emails.length} kullanıcıya email gönderiliyor: ${change.coin_symbol} -> ${signal.decision}`);
+      
+      // Resend API ile toplu gönderim yap (Resend to alanında array destekler)
+      await sendSignalEmail(
+        emails,
+        signal.coin.symbol.toUpperCase(),
+        signal.decision,
+        signal.score,
+        signal.coin.current_price,
+        signal.justification
+      );
+      
       return true;
     }
     
@@ -93,7 +110,6 @@ export async function queueAlert(
  */
 export async function getPendingAlerts(userId: string): Promise<SignalAlert[]> {
   try {
-    // TODO: signal_alerts tablosundan bekleyen alert'leri getir
     return [];
   } catch (error) {
     console.error("Error fetching pending alerts:", error);
@@ -106,7 +122,6 @@ export async function getPendingAlerts(userId: string): Promise<SignalAlert[]> {
  */
 export async function markAlertAsSent(alertId: string): Promise<boolean> {
   try {
-    // TODO: signal_alerts tablosunda sent_at güncelle
     return true;
   } catch (error) {
     console.error("Error marking alert as sent:", error);

@@ -58,30 +58,29 @@ export async function GET(request: NextRequest) {
         if (saved) {
           successful++;
           
-          // Önceki signal ile karşılaştır (alert için)
-          if (previousSignal) {
-            const change = compareSignals(previousSignal, signal);
-            if (change && change.change_type !== "NO_CHANGE") {
-              alertCandidates.push({
-                coin: coin.symbol,
-                change,
-              });
-              
-              // Alert kuyruğuna ekle (gelecekte kullanıcı bazlı olacak)
-              // TODO: Tüm kullanıcılar için alert kontrolü yapılacak
-              await queueAlert("system", change);
-            }
-          } else if (signal.score >= 80) {
-            // İlk signal ve score >= 80 (ACTION)
-            const change = compareSignals(null, signal);
-            if (change) {
-              alertCandidates.push({
-                coin: coin.symbol,
-                change,
-              });
-              await queueAlert("system", change);
-            }
-          }
+              // Önceki signal ile karşılaştır (alert için)
+              if (previousSignal) {
+                const change = compareSignals(previousSignal, signal);
+                if (change && change.change_type !== "NO_CHANGE") {
+                  alertCandidates.push({
+                    coin: coin.symbol,
+                    change,
+                  });
+                  
+                  // Alert kuyruğuna ekle ve email gönder
+                  await queueAlert("system", change, signal);
+                }
+              } else if (signal.score >= 75) {
+                // İlk signal ve score >= 75 (ACTION)
+                const change = compareSignals(null, signal);
+                if (change) {
+                  alertCandidates.push({
+                    coin: coin.symbol,
+                    change,
+                  });
+                  await queueAlert("system", change, signal);
+                }
+              }
         } else {
           failed++;
           errors.push({
