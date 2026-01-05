@@ -39,6 +39,13 @@ export interface SignalResult {
     stopLossRisk: number;
   };
   
+  // İşlem seviyeleri (sadece LONG veya SHORT kararlarında)
+  tradeLevels?: {
+    entryPrice: number;      // Giriş fiyatı (mevcut fiyat)
+    takeProfit: number;       // Kâr al seviyesi
+    stopLoss: number;         // Zarar durdur seviyesi
+  };
+  
   justification: string;
 }
 
@@ -328,6 +335,36 @@ export function calculateSignal(indicators: SwingIndicators, coin: CryptoCoin, c
   const totalScore = Math.round(trend.points + momentum.points + structure.points + risk.points);
   const decision: "LONG" | "SHORT" | "WAIT" = totalScore >= config.thresholds.action ? (trend.context === "BULLISH" ? "LONG" : "SHORT") : "WAIT";
   
+  // İşlem seviyelerini hesapla (sadece LONG veya SHORT kararlarında)
+  let tradeLevels: { entryPrice: number; takeProfit: number; stopLoss: number } | undefined;
+  
+  if (decision === "LONG" || decision === "SHORT") {
+    const entryPrice = price;
+    const atr = indicators.atr!;
+    
+    if (decision === "LONG") {
+      // LONG: StopLoss = Fiyat - (2 * ATR), TakeProfit = Fib 100%
+      const stopLoss = entryPrice - (2 * atr);
+      const takeProfit = indicators.fib_end_price || entryPrice + (3 * atr); // Fallback: 3 ATR yukarı
+      
+      tradeLevels = {
+        entryPrice,
+        takeProfit,
+        stopLoss: Math.max(0, stopLoss) // Negatif fiyat olmasın
+      };
+    } else {
+      // SHORT: StopLoss = Fiyat + (2 * ATR), TakeProfit = Fib 0%
+      const stopLoss = entryPrice + (2 * atr);
+      const takeProfit = indicators.fib_start_price || entryPrice - (3 * atr); // Fallback: 3 ATR aşağı
+      
+      tradeLevels = {
+        entryPrice,
+        takeProfit: Math.max(0, takeProfit), // Negatif fiyat olmasın
+        stopLoss
+      };
+    }
+  }
+  
   return {
     coin, decision, score: totalScore, showInUI: totalScore >= config.thresholds.watchlist,
     trend: {
@@ -357,6 +394,7 @@ export function calculateSignal(indicators: SwingIndicators, coin: CryptoCoin, c
       assessment: risk.assessment,
       stopLossRisk: risk.stopLossRisk
     },
+    tradeLevels,
     justification: generateJustification(trend.context, totalScore, decision, indicators.adx!, trend.maStructure, indicators.rsi!, momentum.zone, structure.fibCheck, structure.distanceInATR, risk.atrPercent, risk.assessment, config.thresholds)
   };
 }
@@ -368,6 +406,7 @@ function createEmptySignal(coin: CryptoCoin, ind: SwingIndicators, trend?: Trend
     momentum: { points: 0, rsi: ind.rsi || 0, zone: "WEAK", status: "Veri yok" },
     structure: { points: 0, fibCheck: "INVALID", fibValue: ind.fib_value || 0, distance: 0, distanceInATR: 0 },
     risk: { points: 0, atrPercent: 0, assessment: "EXTREME", stopLossRisk: 0 },
+    tradeLevels: undefined, // WAIT durumunda işlem seviyeleri yok
     justification: "Veri eksik veya trend yok."
   };
 }
@@ -409,6 +448,7 @@ function createForceWaitSignal(
       assessment: risk.assessment,
       stopLossRisk: risk.stopLossRisk
     },
+    tradeLevels: undefined, // WAIT durumunda işlem seviyeleri yok
     justification: struct.forceWait ? "Yapı kırılgan." : "Risk çok yüksek."
   };
 }

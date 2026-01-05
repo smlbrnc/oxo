@@ -49,12 +49,34 @@ export async function sendSignalEmail(
   decision: "LONG" | "SHORT" | "WAIT",
   score: number,
   price: number,
-  justification: string
+  justification: string,
+  tradeLevels?: { entryPrice: number; takeProfit: number; stopLoss: number }
 ): Promise<unknown> {
   const color = decision === "LONG" ? "#10b981" : decision === "SHORT" ? "#ef4444" : "#6b7280";
   const typeText = decision === "LONG" ? "YÜKSELİŞ (LONG)" : decision === "SHORT" ? "DÜŞÜŞ (SHORT)" : "BEKLE";
 
   const subject = `[SİNYAL] ${coinSymbol} - ${typeText} (${score}/100)`;
+
+  // İşlem seviyeleri HTML'i (sadece LONG veya SHORT için)
+  const tradeLevelsHtml = tradeLevels ? `
+      <div style="background-color: #f0f9ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid ${color};">
+        <h3 style="font-size: 16px; margin-top: 0; margin-bottom: 12px; color: ${color};">İşlem Seviyeleri</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563;"><strong>Giriş (Al):</strong></td>
+            <td style="padding: 8px 0; text-align: right; color: ${color}; font-weight: bold;">$${tradeLevels.entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563;"><strong>Kâr Al (Sat):</strong></td>
+            <td style="padding: 8px 0; text-align: right; color: #10b981; font-weight: bold;">$${tradeLevels.takeProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #4b5563;"><strong>Zarar Durdur (Stop):</strong></td>
+            <td style="padding: 8px 0; text-align: right; color: #ef4444; font-weight: bold;">$${tradeLevels.stopLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</td>
+          </tr>
+        </table>
+      </div>
+  ` : "";
 
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
@@ -64,6 +86,7 @@ export async function sendSignalEmail(
         <p style="margin: 5px 0;"><strong>Güven Skoru:</strong> ${score}/100</p>
         <p style="margin: 5px 0;"><strong>Fiyat:</strong> $${price.toLocaleString()}</p>
       </div>
+      ${tradeLevelsHtml}
       <div style="margin-bottom: 20px;">
         <h3 style="font-size: 16px; margin-bottom: 10px;">Analiz Özeti:</h3>
         <p style="color: #4b5563; line-height: 1.5;">${justification}</p>

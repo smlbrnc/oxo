@@ -21,18 +21,22 @@ import {
   Progress,
   Divider,
   Box,
+  Modal,
+  Skeleton,
 } from "@mantine/core";
-import { IconAlertCircle, IconTrendingUp, IconTrendingDown, IconSettings, IconRestore } from "@tabler/icons-react";
+import { IconAlertCircle, IconTrendingUp, IconTrendingDown, IconSettings, IconRestore, IconBrain } from "@tabler/icons-react";
 import { SignalResult, calculateSignal } from "@/lib/signal-engine";
 import { SignalConfig, DEFAULT_SIGNAL_CONFIG } from "@/lib/signal-config";
 import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
-import { getCoinsWithSwingIndicators } from "@/lib/supabase/indicators";
+import { getCoinsWithSwingIndicators, SwingIndicators } from "@/lib/supabase/indicators";
 import { Button, Drawer, Slider, Switch, Accordion, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { AnalysisRequest } from "@/lib/gemini";
 
 export default function TradePage() {
   const { user } = useAuth();
   const [signals, setSignals] = useState<SignalResult[]>([]);
+  const [indicatorsMap, setIndicatorsMap] = useState<Map<string, SwingIndicators>>(new Map());
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<SignalConfig>(DEFAULT_SIGNAL_CONFIG);
   const [opened, { open, close }] = useDisclosure(false);
@@ -44,6 +48,13 @@ export default function TradePage() {
     try {
       // Veritabanından en son hesaplanmış verileri ve coinleri al
       const coinsWithIndicators = await getCoinsWithSwingIndicators();
+      
+      // Indicators map'ini oluştur (analiz için gerekli)
+      const newIndicatorsMap = new Map<string, SwingIndicators>();
+      coinsWithIndicators.forEach(({ coin, indicators }) => {
+        newIndicatorsMap.set(coin.id, indicators);
+      });
+      setIndicatorsMap(newIndicatorsMap);
       
       const calculatedSignals = coinsWithIndicators.map(({ coin, indicators }) =>
         calculateSignal(indicators, coin, currentConfig)
@@ -260,7 +271,10 @@ export default function TradePage() {
               <Grid>
                 {signals.map((signal) => (
                   <Grid.Col key={signal.coin.id} span={{ base: 12, md: 6, lg: 4 }}>
-                    <SignalCard signal={signal} />
+                    <SignalCard 
+                      signal={signal} 
+                      indicators={indicatorsMap.get(signal.coin.id)} 
+                    />
                   </Grid.Col>
                 ))}
               </Grid>
@@ -274,7 +288,93 @@ export default function TradePage() {
 }
 
 // Signal Card Component
-function SignalCard({ signal }: { signal: SignalResult }) {
+function SignalCard({ signal, indicators }: { signal: SignalResult; indicators?: SwingIndicators }) {
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisModalOpened, { open: openAnalysisModal, close: closeAnalysisModal }] = useDisclosure(false);
+  const [loadingTextIndex, setLoadingTextIndex] = useState(0);
+  
+  const loadingTexts = [
+    "Yapay zeka analiz yapıyor...",
+    "Teknik göstergeler analiz ediliyor...",
+    "Piyasa verileri değerlendiriliyor...",
+    "Sonuçlar hazırlanıyor...",
+  ];
+
+  useEffect(() => {
+    if (analyzing) {
+      const interval = setInterval(() => {
+        setLoadingTextIndex((prev) => (prev + 1) % loadingTexts.length);
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [analyzing, loadingTexts.length]);
+
+  const handleAnalyze = async () => {
+    if (!indicators) {
+      setAnalysisError("Gösterge verileri bulunamadı.");
+      return;
+    }
+
+    setAnalyzing(true);
+    setAnalysisError(null);
+    setAnalysisResult(null);
+    openAnalysisModal();
+
+    try {
+      const requestBody: AnalysisRequest = {
+        coinName: signal.coin.name,
+        symbol: signal.coin.symbol,
+        price: signal.coin.current_price,
+        tradingStrategy: "swing",
+      };
+
+      // Swing trade göstergeleri
+      if (indicators.ma !== undefined && indicators.ma !== null) {
+        requestBody.ma = indicators.ma;
+      }
+      if (indicators.atr !== undefined && indicators.atr !== null) {
+        requestBody.atr = indicators.atr;
+      }
+      if (indicators.fib_value !== undefined && indicators.fib_value !== null) {
+        requestBody.fib = {
+          value: indicators.fib_value,
+          trend: signal.trend.context === "BULLISH" ? "Yükseliş" : signal.trend.context === "BEARISH" ? "Düşüş" : "Nötr",
+          startPrice: indicators.fib_start_price || 0,
+          endPrice: indicators.fib_end_price || 0,
+        };
+      }
+      if (indicators.rsi !== undefined && indicators.rsi !== null) {
+        requestBody.rsi = indicators.rsi;
+      }
+      if (indicators.adx !== undefined && indicators.adx !== null) {
+        requestBody.adx = indicators.adx;
+      }
+
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Analiz oluşturulurken bir hata oluştu");
+      }
+
+      const data = await response.json();
+      setAnalysisResult(data.analysis);
+    } catch (error) {
+      console.error("Analysis error:", error);
+      setAnalysisError(error instanceof Error ? error.message : "Analiz oluşturulurken bir hata oluştu");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const decisionColor =
     signal.decision === "LONG" ? "green" :
     signal.decision === "SHORT" ? "red" : "gray";
@@ -409,11 +509,115 @@ function SignalCard({ signal }: { signal: SignalResult }) {
 
         <Divider />
 
+        {/* İşlem Seviyeleri (sadece LONG veya SHORT için) */}
+        {signal.decision !== "WAIT" && signal.tradeLevels && (
+          <>
+            <Box>
+              <Text size="sm" fw={600} mb="sm">
+                İşlem Seviyeleri
+              </Text>
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">
+                    Giriş (Al):
+                  </Text>
+                  <Text size="xs" fw={600} c={decisionColor}>
+                    ${signal.tradeLevels.entryPrice.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 8,
+                    })}
+                  </Text>
+                </Group>
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">
+                    Kâr Al (Sat):
+                  </Text>
+                  <Text size="xs" fw={600} c="green">
+                    ${signal.tradeLevels.takeProfit.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 8,
+                    })}
+                  </Text>
+                </Group>
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">
+                    Zarar Durdur (Stop):
+                  </Text>
+                  <Text size="xs" fw={600} c="red">
+                    ${signal.tradeLevels.stopLoss.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 8,
+                    })}
+                  </Text>
+                </Group>
+              </Stack>
+            </Box>
+            <Divider />
+          </>
+        )}
+
         {/* Justification */}
         <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
           {signal.justification}
         </Text>
+
+        {/* Analiz Yap Butonu */}
+        <Button
+          variant="light"
+          size="sm"
+          fullWidth
+          leftSection={<IconBrain size={16} />}
+          onClick={handleAnalyze}
+          disabled={analyzing || !indicators}
+          mt="sm"
+        >
+          {analyzing ? "Analiz Yapılıyor..." : "AI Analiz Yap"}
+        </Button>
       </Stack>
+
+      {/* Analiz Sonuçları Modal */}
+      <Modal
+        opened={analysisModalOpened}
+        onClose={closeAnalysisModal}
+        title={`${signal.coin.symbol.toUpperCase()} - AI Analiz Sonuçları`}
+        size="lg"
+      >
+        {analyzing ? (
+          <Stack gap="md">
+            <Group gap="sm" align="center">
+              <Loader size="sm" />
+              <Text fw={500} size="sm" c="dimmed">
+                {loadingTexts[loadingTextIndex]}
+              </Text>
+            </Group>
+            <Paper p="md" withBorder radius="md" style={{ backgroundColor: "var(--mantine-color-gray-0)" }}>
+              <Stack gap="sm">
+                <Skeleton height={14} radius="sm" />
+                <Skeleton height={14} radius="sm" width="92%" />
+                <Skeleton height={14} radius="sm" width="88%" />
+                <Skeleton height={14} radius="sm" width="95%" />
+                <Skeleton height={14} radius="sm" width="85%" />
+                <Skeleton height={14} radius="sm" width="90%" />
+              </Stack>
+            </Paper>
+          </Stack>
+        ) : analysisError ? (
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Hata"
+            color="red"
+            variant="light"
+          >
+            {analysisError}
+          </Alert>
+        ) : analysisResult ? (
+          <Paper p="md" withBorder radius="md" style={{ backgroundColor: "var(--mantine-color-gray-0)" }}>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+              {analysisResult}
+            </Text>
+          </Paper>
+        ) : null}
+      </Modal>
     </Paper>
   );
 }

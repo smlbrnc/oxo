@@ -93,7 +93,8 @@ export async function queueAlert(
         signal.decision,
         signal.score,
         signal.coin.current_price,
-        signal.justification
+        signal.justification,
+        signal.tradeLevels
       );
       
       return true;
