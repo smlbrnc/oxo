@@ -274,7 +274,7 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
           };
 
           return { coin: fallbackCoin, indicators: item };
-        } catch (_err) {
+        } catch {
           return null;
         }
       })
