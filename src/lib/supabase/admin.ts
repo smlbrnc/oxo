@@ -7,11 +7,18 @@ import { createClient } from "@supabase/supabase-js";
  */
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  // Vercel'de SUPABASE_SERVICE_ROLE_KEY olarak tanımlanmalıdır.
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error("Supabase URL veya Key bulunamadı.");
+  if (!supabaseUrl) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL eksik.");
+  }
+
+  if (!supabaseServiceKey) {
+    // Admin yetkisi yoksa Anon key ile dene ama uyar
+    console.warn("[Admin] SUPABASE_SERVICE_ROLE_KEY bulunamadı, kısıtlı yetkiyle çalışılıyor.");
+    return createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
   }
 
   return createClient(supabaseUrl, supabaseServiceKey, {
