@@ -1334,3 +1334,5 @@
 [2026-01-05 13:46:51] ✓ Başarılı (HTTP 200)
   Coin: NEAR, Endpoint: Bollinger Bands, Progress: 3/5
 [2026-01-05 13:47:13] Edge function çağrılıyor...
+[2026-01-05 13:47:13] ✓ Başarılı (HTTP 200)
+  Coin: NEAR, Endpoint: Pivot Points, Progress: 4/5
