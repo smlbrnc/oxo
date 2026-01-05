@@ -4,6 +4,8 @@ import { calculateSignal } from "@/lib/signal-engine";
 import { saveSignal, getLatestSignal, compareSignals, SignalChange } from "@/lib/supabase/signals";
 import { queueAlert } from "@/lib/supabase/alerts";
 
+export const dynamic = "force-dynamic";
+
 /**
  * External Cron Job (Cron-job.org vb.): Tüm coinler için signal hesapla
  * 
@@ -32,10 +34,16 @@ export async function GET(request: NextRequest) {
     if (coinsWithIndicators.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "Hesaplanacak coin bulunamadı",
+        message: "Hesaplanacak coin bulunamadı (Supabase veya Binance kaynaklı olabilir)",
         processed: 0,
         successful: 0,
         failed: 0,
+        diagnostics: {
+          timestamp: new Date().toISOString(),
+          supabase_url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          supabase_key: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          cron_secret: !!process.env.CRON_SECRET,
+        }
       });
     }
 

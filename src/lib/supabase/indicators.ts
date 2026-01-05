@@ -221,22 +221,29 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
       .order("coin_symbol", { ascending: true });
 
     if (error) {
-      console.error("Error fetching swing indicators:", error);
+      console.error("Error fetching swing indicators from Supabase:", error);
       return [];
     }
 
     if (!data || data.length === 0) {
+      console.log("[Indicators] Supabase swing_indicators tablosu boş döndü.");
       return [];
     }
+
+    console.log(`[Indicators] Supabase'den ${data.length} adet indicator verisi alındı. Binance fiyatları çekiliyor...`);
 
     // Fetch current prices from Binance for all coins
     const tickers = await Promise.all(
       data.map(async (item) => {
         try {
           const binanceSymbol = symbolToBinancePair(item.coin_symbol);
-          return await getTicker24hr(binanceSymbol);
-        } catch (error) {
-          console.error(`Error fetching ticker for ${item.coin_symbol}:`, error);
+          const ticker = await getTicker24hr(binanceSymbol);
+          if (!ticker) {
+            console.warn(`[Indicators] ${item.coin_symbol} için Binance ticker alınamadı.`);
+          }
+          return ticker;
+        } catch (err) {
+          console.error(`[Indicators] ${item.coin_symbol} için Binance hatası:`, err);
           return null;
         }
       })
@@ -254,6 +261,7 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
       })
       .filter((item): item is { coin: CryptoCoin; indicators: SwingIndicators } => item !== null);
 
+    console.log(`[Indicators] Toplam ${results.length} coin başarıyla hazırlandı.`);
     return results;
   } catch (error) {
     console.error("Error in getCoinsWithSwingIndicators:", error);
