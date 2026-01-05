@@ -37,7 +37,9 @@ export async function GET(request: NextRequest) {
     
     if (coinsWithIndicators.length === 0) {
       // Daha detaylı teşhis bilgisi
-      const { data: rawData, error: rawError } = await supabaseAdmin.from("swing_indicators").select("count");
+      const { count, error: rawError } = await supabaseAdmin
+        .from("swing_indicators")
+        .select("*", { count: "exact", head: true });
       
       return NextResponse.json({
         success: true,
@@ -51,8 +53,8 @@ export async function GET(request: NextRequest) {
           supabase_key: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
           supabase_service_role_key: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
           cron_secret: !!process.env.CRON_SECRET,
-          raw_db_count: rawData?.[0] || 0,
-          raw_db_error: rawError || null
+          db_row_count: count || 0,
+          db_error: rawError || null
         }
       });
     }
