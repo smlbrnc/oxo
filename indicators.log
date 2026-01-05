@@ -1336,3 +1336,6 @@
 [2026-01-05 13:47:13] Edge function çağrılıyor...
 [2026-01-05 13:47:13] ✓ Başarılı (HTTP 200)
   Coin: NEAR, Endpoint: Pivot Points, Progress: 4/5
+[2026-01-05 13:47:36] Edge function çağrılıyor...
+[2026-01-05 13:47:36] ✓ Başarılı (HTTP 200)
+  Coin: NEAR, Endpoint: RSI, Progress: 5/5
