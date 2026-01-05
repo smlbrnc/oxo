@@ -1319,3 +1319,5 @@
 [2026-01-05 13:45:00] ✓ Başarılı (HTTP 200)
   Coin: NEAR, Endpoint: SMA50, Progress: 6/8
 [2026-01-05 13:45:24] Edge function çağrılıyor...
+[2026-01-05 13:45:24] ✓ Başarılı (HTTP 200)
+  Coin: NEAR, Endpoint: SMA100, Progress: 7/8
