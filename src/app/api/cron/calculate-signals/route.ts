@@ -3,6 +3,7 @@ import { getCoinsWithSwingIndicators } from "@/lib/supabase/indicators";
 import { calculateSignal } from "@/lib/signal-engine";
 import { saveSignal, getLatestSignal, compareSignals, SignalChange } from "@/lib/supabase/signals";
 import { queueAlert } from "@/lib/supabase/alerts";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,16 @@ export async function GET(request: NextRequest) {
 
     console.log("[Cron] Signal hesaplama tetiklendi:", new Date().toISOString());
 
-    // Tüm coinler ve indicators'ları getir
+    // Admin client oluştur (RLS bypass için)
+    const supabaseAdmin = createAdminClient();
+
+    // Tüm coinler ve indicators'ları getir (Dahili olarak admin client kullanacak)
     const coinsWithIndicators = await getCoinsWithSwingIndicators();
     
     if (coinsWithIndicators.length === 0) {
+      // Daha detaylı teşhis bilgisi
+      const { data: rawData, error: rawError } = await supabaseAdmin.from("swing_indicators").select("count");
+      
       return NextResponse.json({
         success: true,
         message: "Hesaplanacak coin bulunamadı (Supabase veya Binance kaynaklı olabilir)",
@@ -42,7 +49,10 @@ export async function GET(request: NextRequest) {
           timestamp: new Date().toISOString(),
           supabase_url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
           supabase_key: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          supabase_service_role_key: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
           cron_secret: !!process.env.CRON_SECRET,
+          raw_db_count: rawData?.[0] || 0,
+          raw_db_error: rawError || null
         }
       });
     }

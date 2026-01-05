@@ -1,14 +1,7 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CryptoCoin } from "../types";
 import { getTicker24hr, symbolToBinancePair, tickerToCryptoCoin } from "../binance";
-
-// API/Server kullanımı için güvenli client
-function getAdminClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { createAdminClient } from "./admin";
+import { createClient } from "./client";
 
 export interface SwingIndicators {
   id: string;
@@ -67,7 +60,7 @@ export async function getSwingIndicatorsFromCache(
   coinId: string
 ): Promise<SwingIndicators | null> {
   try {
-    const supabase = getAdminClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("swing_indicators")
       .select("*")
@@ -93,7 +86,7 @@ export async function getScalpIndicatorsFromCache(
   coinId: string
 ): Promise<ScalpIndicators | null> {
   try {
-    const supabase = getAdminClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("scalp_indicators")
       .select("*")
@@ -141,7 +134,7 @@ export async function getAllCoinsWithIndicators(
   strategy: "swing" | "scalp"
 ): Promise<Array<{ coin_id: string; coin_symbol: string }>> {
   try {
-    const supabase = getAdminClient();
+    const supabase = createAdminClient();
     const tableName = strategy === "swing" ? "swing_indicators" : "scalp_indicators";
     
     const { data, error } = await supabase
@@ -222,21 +215,27 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
   indicators: SwingIndicators;
 }>> {
   try {
-    const supabase = getAdminClient();
+    // API/Server ortamında admin client kullan
+    const supabase = createAdminClient();
+    
+    console.log("[Indicators] Supabase'den veriler çekiliyor...");
+    
     const { data, error } = await supabase
       .from("swing_indicators")
       .select("*")
       .order("coin_symbol", { ascending: true });
 
     if (error) {
-      console.error("Error fetching swing indicators from Supabase:", error);
+      console.error("[Indicators] Supabase Hatası:", error);
       return [];
     }
 
     if (!data || data.length === 0) {
-      console.log("[Indicators] Supabase swing_indicators tablosu boş döndü.");
+      console.warn("[Indicators] Supabase'de hiç indicator verisi bulunamadı!");
       return [];
     }
+
+    console.log(`[Indicators] Supabase'den ${data.length} coin verisi alındı. Fiyatlar güncelleniyor...`);
 
     // Fetch current prices from Binance for all coins
     const results = await Promise.all(
@@ -252,16 +251,15 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
             };
           }
           
-          // ⚠️ BINANCE FALLBACK: Eğer Binance'den fiyat alınamazsa veritabanındaki veriyi kullan
-          console.warn(`[Indicators] ${item.coin_symbol} için Binance ticker alınamadı, fallback kullanılıyor.`);
+          // ⚠️ BINANCE FALLBACK: Eğer Binance'den fiyat alınamazsa veritabanındaki son veriyi kullan
+          console.warn(`[Indicators] ${item.coin_symbol} için Binance fiyatı alınamadı, fallback aktif.`);
           
-          // Sahte bir CryptoCoin objesi oluştur (en azından sinyal hesaplanabilsin diye)
           const fallbackCoin: CryptoCoin = {
             id: item.coin_id,
             symbol: item.coin_symbol.toLowerCase(),
             name: item.coin_symbol.toUpperCase(),
             image: "",
-            current_price: item.ma || 0, // En azından MA değerini baz al (veya 0)
+            current_price: item.ma || 0,
             market_cap: 0,
             market_cap_rank: index + 1,
             price_change_percentage_24h: 0,
@@ -270,20 +268,29 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
             low_24h: 0,
             circulating_supply: 0,
             total_supply: 0,
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
+            price_change_24h: 0,
+            ath: 0,
+            ath_change_percentage: 0,
+            ath_date: "",
+            atl: 0,
+            atl_change_percentage: 0,
+            atl_date: ""
           };
 
           return { coin: fallbackCoin, indicators: item };
         } catch (err) {
-          console.error(`[Indicators] ${item.coin_symbol} işlenirken hata:`, err);
+          console.error(`[Indicators] ${item.coin_symbol} işlenirken kritik hata:`, err);
           return null;
         }
       })
     );
 
-    return results.filter((r): r is { coin: CryptoCoin; indicators: SwingIndicators } => r !== null);
+    const finalResults = results.filter((r): r is { coin: CryptoCoin; indicators: SwingIndicators } => r !== null);
+    console.log(`[Indicators] İşlem tamamlandı. Toplam: ${finalResults.length} coin.`);
+    return finalResults;
   } catch (error) {
-    console.error("Error in getCoinsWithSwingIndicators:", error);
+    console.error("[Indicators] Genel Hata:", error);
     return [];
   }
 }
