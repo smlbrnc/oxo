@@ -47,7 +47,6 @@ export function shouldTriggerAlert(change: SignalChange): boolean {
  * Alert'i kuyruğa ekle ve bildirimleri açık tüm kullanıcılara email gönder
  */
 export async function queueAlert(
-  userId: string,
   change: SignalChange,
   signal: SignalResult
 ): Promise<boolean> {
@@ -108,7 +107,7 @@ export async function queueAlert(
 /**
  * Bekleyen alert'leri getir (gelecekte implement edilecek)
  */
-export async function getPendingAlerts(userId: string): Promise<SignalAlert[]> {
+export async function getPendingAlerts(): Promise<SignalAlert[]> {
   try {
     return [];
   } catch (error) {
@@ -120,7 +119,7 @@ export async function getPendingAlerts(userId: string): Promise<SignalAlert[]> {
 /**
  * Alert gönderildi olarak işaretle (gelecekte implement edilecek)
  */
-export async function markAlertAsSent(alertId: string): Promise<boolean> {
+export async function markAlertAsSent(): Promise<boolean> {
   try {
     return true;
   } catch (error) {

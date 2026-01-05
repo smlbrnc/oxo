@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoinsWithSwingIndicators } from "@/lib/supabase/indicators";
 import { calculateSignal } from "@/lib/signal-engine";
-import { saveSignal, getLatestSignal, compareSignals } from "@/lib/supabase/signals";
+import { saveSignal, getLatestSignal, compareSignals, SignalChange } from "@/lib/supabase/signals";
 import { queueAlert } from "@/lib/supabase/alerts";
 
 /**
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     let successful = 0;
     let failed = 0;
     const errors: Array<{ coin: string; error: string }> = [];
-    const alertCandidates: Array<{ coin: string; change: any }> = [];
+    const alertCandidates: Array<{ coin: string; change: SignalChange }> = [];
 
     // Her coin için signal hesapla
     for (const { coin, indicators } of coinsWithIndicators) {
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
                   });
                   
                   // Alert kuyruğuna ekle ve email gönder
-                  await queueAlert("system", change, signal);
+                  await queueAlert(change, signal);
                 }
               } else if (signal.score >= 75) {
                 // İlk signal ve score >= 75 (ACTION)
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
                     coin: coin.symbol,
                     change,
                   });
-                  await queueAlert("system", change, signal);
+                  await queueAlert(change, signal);
                 }
               }
         } else {

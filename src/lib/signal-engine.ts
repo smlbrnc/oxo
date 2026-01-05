@@ -45,7 +45,17 @@ export interface SignalResult {
 // ============================================
 // STEP 1: TREND IDENTIFICATION
 // ============================================
-function evaluateTrend(indicators: SwingIndicators, price: number, config: SignalConfig) {
+interface TrendResult {
+  context: "BULLISH" | "BEARISH" | "NEUTRAL";
+  pass: boolean;
+  points: number;
+  adx: number;
+  adxStrength: "STRONG" | "MODERATE" | "WEAK";
+  maStructure: "PERFECT" | "PARTIAL" | "MESSY";
+  priceVsMA100: "ABOVE" | "BELOW" | "AT";
+}
+
+function evaluateTrend(indicators: SwingIndicators, price: number, config: SignalConfig): TrendResult {
   const { ma50, ma100, ma200, adx, fib_value } = indicators;
   const { trend: trendCfg, weights } = config;
   
@@ -54,6 +64,7 @@ function evaluateTrend(indicators: SwingIndicators, price: number, config: Signa
       context: "NEUTRAL" as const,
       pass: false,
       points: 0,
+      adx: adx || 0,
       adxStrength: "WEAK" as const,
       maStructure: "MESSY" as const,
       priceVsMA100: (price > (ma100 || 0) ? "ABOVE" : "BELOW") as "ABOVE" | "BELOW" | "AT",
@@ -65,6 +76,7 @@ function evaluateTrend(indicators: SwingIndicators, price: number, config: Signa
       context: "NEUTRAL" as const,
       pass: false,
       points: 0,
+      adx: adx,
       adxStrength: "WEAK" as const,
       maStructure: "MESSY" as const,
       priceVsMA100: (price > ma100 ? "ABOVE" : "BELOW") as "ABOVE" | "BELOW" | "AT",
@@ -95,6 +107,7 @@ function evaluateTrend(indicators: SwingIndicators, price: number, config: Signa
       context: "BULLISH" as const,
       pass: true,
       points: pts,
+      adx: adx,
       adxStrength: (adx >= trendCfg.adxStrong ? "STRONG" : "MODERATE") as "STRONG" | "MODERATE" | "WEAK",
       maStructure: "PERFECT" as const,
       priceVsMA100: "ABOVE" as const,
@@ -119,6 +132,7 @@ function evaluateTrend(indicators: SwingIndicators, price: number, config: Signa
       context: "BULLISH" as const,
       pass: true,
       points: Math.min(weights.trend - 2, basePts + bonus),
+      adx: adx,
       adxStrength: (adx >= trendCfg.adxStrong ? "STRONG" : "MODERATE") as "STRONG" | "MODERATE" | "WEAK",
       maStructure: "PARTIAL" as const,
       priceVsMA100: (priceAboveMA100 ? "ABOVE" : "BELOW") as "ABOVE" | "BELOW" | "AT",
@@ -137,6 +151,7 @@ function evaluateTrend(indicators: SwingIndicators, price: number, config: Signa
       context: "BEARISH" as const,
       pass: true,
       points: pts,
+      adx: adx,
       adxStrength: (adx >= trendCfg.adxStrong ? "STRONG" : "MODERATE") as "STRONG" | "MODERATE" | "WEAK",
       maStructure: "PERFECT" as const,
       priceVsMA100: "BELOW" as const,
@@ -161,19 +176,26 @@ function evaluateTrend(indicators: SwingIndicators, price: number, config: Signa
       context: "BEARISH" as const,
       pass: true,
       points: Math.min(weights.trend - 2, basePts + bonus),
+      adx: adx,
       adxStrength: (adx >= trendCfg.adxStrong ? "STRONG" : "MODERATE") as "STRONG" | "MODERATE" | "WEAK",
       maStructure: "PARTIAL" as const,
       priceVsMA100: (priceBelowMA100 ? "BELOW" : "ABOVE") as "ABOVE" | "BELOW" | "AT",
     };
   }
 
-  return { context: "NEUTRAL" as const, pass: false, points: 0, adxStrength: "WEAK" as const, maStructure: "MESSY" as const, priceVsMA100: "AT" as const };
+  return { context: "NEUTRAL" as const, pass: false, points: 0, adx: adx || 0, adxStrength: "WEAK" as const, maStructure: "MESSY" as const, priceVsMA100: "AT" as const };
 }
 
 // ============================================
 // STEP 2: MOMENTUM CONTROL (RSI)
 // ============================================
-function evaluateMomentum(rsi: number | null, context: "BULLISH" | "BEARISH" | "NEUTRAL", adx: number, config: SignalConfig) {
+interface MomentumResult {
+  points: number;
+  zone: "HEALTHY" | "STRONG" | "OVERBOUGHT" | "OVERSOLD" | "WEAK";
+  status: string;
+}
+
+function evaluateMomentum(rsi: number | null, context: "BULLISH" | "BEARISH" | "NEUTRAL", adx: number, config: SignalConfig): MomentumResult {
   const { weights } = config;
   if (context === "NEUTRAL" || rsi === null) return { points: 0, zone: "WEAK" as const, status: "Geçerli trend yok" };
   
@@ -213,10 +235,18 @@ function evaluateMomentum(rsi: number | null, context: "BULLISH" | "BEARISH" | "
 // ============================================
 // STEP 3: STRUCTURE VALIDATION
 // ============================================
+interface StructureResult {
+  points: number;
+  fibCheck: "VALID_SAFE" | "VALID_FRAGILE" | "INVALID";
+  distance: number;
+  distanceInATR: number;
+  forceWait: boolean;
+}
+
 function evaluateStructure(
   price: number, fib618: number | null, fibEnd: number | null, fibStart: number | null, 
   atr: number | null, context: "BULLISH" | "BEARISH" | "NEUTRAL", config: SignalConfig
-) {
+): StructureResult {
   const { structure: structCfg, weights } = config;
   if (context === "NEUTRAL" || fib618 === null || atr === null || atr === 0) return { points: 0, fibCheck: "INVALID" as const, distance: 0, distanceInATR: 0, forceWait: false };
   
@@ -261,13 +291,21 @@ function evaluateStructure(
 // ============================================
 // STEP 4: RISK (ATR)
 // ============================================
-function evaluateRisk(atr: number | null, price: number, config: SignalConfig) {
+interface RiskResult {
+  points: number;
+  assessment: "SAFE" | "ELEVATED" | "EXTREME";
+  atrPercent: number;
+  stopLossRisk: number;
+  forceWait: boolean;
+}
+
+function evaluateRisk(atr: number | null, price: number, config: SignalConfig): RiskResult {
   const { risk: riskCfg, weights } = config;
   if (atr === null || atr === 0 || price === 0) return { points: 0, assessment: "EXTREME" as const, atrPercent: 0, stopLossRisk: 0, forceWait: true };
   const vol = (atr / price) * 100;
   const sl = (atr * 2) / price * 100;
   if (vol > riskCfg.volatilityExtreme) return { points: 0, assessment: "EXTREME" as const, atrPercent: vol, stopLossRisk: sl, forceWait: sl > riskCfg.maxStopLoss };
-  let pts = vol >= 2.5 ? Math.round(weights.risk * 0.5) : weights.risk;
+  const pts = vol >= 2.5 ? Math.round(weights.risk * 0.5) : weights.risk;
   return { points: pts, assessment: (vol >= 2.5 ? "ELEVATED" : "SAFE") as "ELEVATED" | "SAFE", atrPercent: vol, stopLossRisk: sl, forceWait: false };
 }
 
@@ -323,18 +361,25 @@ export function calculateSignal(indicators: SwingIndicators, coin: CryptoCoin, c
   };
 }
 
-function createEmptySignal(coin: CryptoCoin, ind: any, trend?: any): SignalResult {
+function createEmptySignal(coin: CryptoCoin, ind: SwingIndicators, trend?: TrendResult): SignalResult {
   return {
     coin, decision: "WAIT", score: 0, showInUI: false,
-    trend: trend || { context: "NEUTRAL", points: 0, adx: 0, adxStrength: "WEAK", maStructure: "MESSY", priceVsMA100: "AT" },
-    momentum: { points: 0, rsi: 0, zone: "WEAK", status: "Veri yok" },
-    structure: { points: 0, fibCheck: "INVALID", fibValue: 0, distance: 0, distanceInATR: 0 },
+    trend: trend || { context: "NEUTRAL", points: 0, adx: ind.adx || 0, adxStrength: "WEAK", maStructure: "MESSY", priceVsMA100: "AT" },
+    momentum: { points: 0, rsi: ind.rsi || 0, zone: "WEAK", status: "Veri yok" },
+    structure: { points: 0, fibCheck: "INVALID", fibValue: ind.fib_value || 0, distance: 0, distanceInATR: 0 },
     risk: { points: 0, atrPercent: 0, assessment: "EXTREME", stopLossRisk: 0 },
     justification: "Veri eksik veya trend yok."
   };
 }
 
-function createForceWaitSignal(coin: CryptoCoin, ind: any, trend: any, mom: any, struct: any, risk: any): SignalResult {
+function createForceWaitSignal(
+  coin: CryptoCoin, 
+  ind: SwingIndicators, 
+  trend: TrendResult, 
+  mom: MomentumResult, 
+  struct: StructureResult, 
+  risk: RiskResult
+): SignalResult {
   return {
     coin, decision: "WAIT", score: 0, showInUI: false,
     trend: {
@@ -368,7 +413,20 @@ function createForceWaitSignal(coin: CryptoCoin, ind: any, trend: any, mom: any,
   };
 }
 
-function generateJustification(ctx: string, score: number, dec: string, adx: number, ma: string, rsi: number, zone: string, fib: string, dist: number, vol: number, risk: string, thr: any): string {
+function generateJustification(
+  ctx: string, 
+  score: number, 
+  dec: string, 
+  adx: number, 
+  ma: string, 
+  rsi: number, 
+  zone: string, 
+  fib: string, 
+  dist: number, 
+  vol: number, 
+  risk: string, 
+  thr: { action: number; watchlist: number }
+): string {
   const parts = [];
   parts.push(`${ctx === "BULLISH" ? "Yükseliş" : "Düşüş"} (${ma}). ADX ${adx.toFixed(1)}.`);
   parts.push(`RSI ${rsi.toFixed(1)} (${zone}).`);

@@ -1,5 +1,6 @@
 import { createClient } from "./client";
 import { SignalResult } from "../signal-engine";
+import { CryptoCoin } from "../types";
 
 export interface StoredSignal {
   id: string;
@@ -293,7 +294,7 @@ export function compareSignals(
 /**
  * StoredSignal'ı SignalResult'a dönüştür
  */
-export function storedSignalToSignalResult(stored: StoredSignal, coin: any): SignalResult {
+export function storedSignalToSignalResult(stored: StoredSignal, coin: CryptoCoin): SignalResult {
   return {
     coin: {
       ...coin,

@@ -10,7 +10,7 @@ export interface EmailOptions {
 /**
  * Resend API kullanarak email gönderir
  */
-export async function sendEmail(options: EmailOptions): Promise<any> {
+export async function sendEmail(options: EmailOptions): Promise<unknown> {
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -50,8 +50,7 @@ export async function sendSignalEmail(
   score: number,
   price: number,
   justification: string
-): Promise<any> {
-  const isAction = decision !== "WAIT";
+): Promise<unknown> {
   const color = decision === "LONG" ? "#10b981" : decision === "SHORT" ? "#ef4444" : "#6b7280";
   const typeText = decision === "LONG" ? "YÜKSELİŞ (LONG)" : decision === "SHORT" ? "DÜŞÜŞ (SHORT)" : "BEKLE";
 

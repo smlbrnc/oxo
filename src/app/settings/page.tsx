@@ -19,7 +19,7 @@ import {
 import { IconSun, IconMoonStars, IconCheck, IconX } from "@tabler/icons-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useMantineColorScheme } from "@mantine/core";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { getOrCreateUserSettings, updateUserSettings } from "@/lib/supabase/settings";
 import { UserSettings, ColorMode } from "@/lib/types";
 
@@ -29,7 +29,6 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const settingsLoaded = useState(false)[0]; // This is a bit hacky, let's use a proper state
 
   useEffect(() => {
     let mounted = true;

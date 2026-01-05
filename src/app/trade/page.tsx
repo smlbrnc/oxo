@@ -23,13 +23,11 @@ import {
   Box,
 } from "@mantine/core";
 import { IconAlertCircle, IconTrendingUp, IconTrendingDown, IconSettings, IconRestore } from "@tabler/icons-react";
-import { getAllLatestSignals, storedSignalToSignalResult } from "@/lib/supabase/signals";
 import { SignalResult, calculateSignal } from "@/lib/signal-engine";
 import { SignalConfig, DEFAULT_SIGNAL_CONFIG } from "@/lib/signal-config";
-import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker, getCoinById } from "@/lib/binance";
+import { createMultiTickerWebSocket, symbolToBinancePair, updateCoinFromTicker } from "@/lib/binance";
 import { getCoinsWithSwingIndicators } from "@/lib/supabase/indicators";
-import { CryptoCoin } from "@/lib/types";
-import { Button, Drawer, Slider, Switch, NumberInput, Accordion, ActionIcon, Tooltip } from "@mantine/core";
+import { Button, Drawer, Slider, Switch, Accordion, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 
 export default function TradePage() {
@@ -170,7 +168,7 @@ export default function TradePage() {
               >
                 <Stack gap="md">
                   <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
-                    Bu ayarlar sinyal skorlarını anlık olarak etkiler. Kuralları gevşeterek daha fazla "LONG/SHORT" sinyali görebilirsiniz.
+                    Bu ayarlar sinyal skorlarını anlık olarak etkiler. Kuralları gevşeterek daha fazla &quot;LONG/SHORT&quot; sinyali görebilirsiniz.
                   </Alert>
 
                   <Accordion defaultValue="thresholds">
