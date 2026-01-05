@@ -25,21 +25,23 @@ export interface SignalAlert {
  * Alert tetikleme koşullarını kontrol et
  */
 export function shouldTriggerAlert(change: SignalChange): boolean {
-  // Score >= 75 olan yeni signal'lar (Config'deki thresholds.action'a göre güncellendi)
-  if (change.change_type === "NEW_SIGNAL" && change.new_score >= 75) {
-    return true;
+  // 1. Yeni bir coin analizi (ilk defa kayıt ediliyorsa)
+  if (change.change_type === "NEW_SIGNAL") {
+    // Sadece LONG veya SHORT ise mail gönder
+    return change.new_decision === "LONG" || change.new_decision === "SHORT";
   }
 
-  // Decision değişti (WAIT → LONG/SHORT)
+  // 2. Karar değiştiyse (Örn: WAIT -> LONG, SHORT -> LONG, LONG -> SHORT vb.)
   if (change.change_type === "DECISION_CHANGE") {
-    return change.new_decision !== "WAIT";
+    // Sadece LONG veya SHORT'a geçişlerde mail gönder
+    // Karar WAIT'e döndüyse (işlemden çıkış) mail göndermiyoruz
+    return change.new_decision === "LONG" || change.new_decision === "SHORT";
   }
 
-  // Eşik geçişleri (ACTION eşiği geçildiyse)
-  if (change.crossed_threshold === "ACTION") {
-    return true;
-  }
-
+  // 3. Eğer karar değişmediyse (örn: zaten LONG idi ve hala LONG)
+  // Skor artsa veya ACTION eşiğini geçse bile e-posta göndermiyoruz.
+  // Bu sayede aynı sinyal için defalarca mail gitmesi engellenir.
+  
   return false;
 }
 
