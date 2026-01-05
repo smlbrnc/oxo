@@ -206,10 +206,6 @@ export async function getScalpIndicatorsBySymbol(
   }
 }
 
-/**
- * Swing indicators ile birlikte coin verilerini getir
- * Her coin için güncel fiyat bilgisi Binance'den alınır
- */
 export async function getCoinsWithSwingIndicators(): Promise<Array<{
   coin: CryptoCoin;
   indicators: SwingIndicators;
@@ -218,31 +214,32 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
     // API/Server ortamında admin client kullan
     const supabase = createAdminClient();
     
-    console.log("[Indicators] Supabase'den veriler çekiliyor...");
+    console.log("[Indicators] Supabase'den veri çekme denemesi...");
     
-    const { data, error } = await supabase
+    // 1. Önce sadece veriyi çekmeyi deneyelim (order olmadan, en yalın haliyle)
+    const { data, error, count } = await supabase
       .from("swing_indicators")
-      .select("*")
-      .order("coin_symbol", { ascending: true });
+      .select("*", { count: "exact" });
 
     if (error) {
-      console.error("[Indicators] Supabase Hatası:", error);
+      console.error("[Indicators] Supabase Select Hatası:", error.message, error.details);
       return [];
     }
 
     if (!data || data.length === 0) {
-      console.warn("[Indicators] Supabase'de hiç indicator verisi bulunamadı!");
+      console.warn(`[Indicators] Veritabanında ${count || 0} satır görüldü ama veriler okunamadı (RLS engeli olabilir).`);
       return [];
     }
 
-    console.log(`[Indicators] Supabase'den ${data.length} coin verisi alındı. Fiyatlar güncelleniyor...`);
+    console.log(`[Indicators] ${data.length} adet veri başarıyla okundu. Binance fiyatları kontrol ediliyor...`);
 
     // Fetch current prices from Binance for all coins
     const results = await Promise.all(
       data.map(async (item, index) => {
         try {
           const binanceSymbol = symbolToBinancePair(item.coin_symbol);
-          const ticker = await getTicker24hr(binanceSymbol);
+          // Binance'den fiyat almayı deneyelim
+          const ticker = await getTicker24hr(binanceSymbol).catch(() => null);
           
           if (ticker) {
             return {
@@ -251,9 +248,7 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
             };
           }
           
-          // ⚠️ BINANCE FALLBACK: Eğer Binance'den fiyat alınamazsa veritabanındaki son veriyi kullan
-          console.warn(`[Indicators] ${item.coin_symbol} için Binance fiyatı alınamadı, fallback aktif.`);
-          
+          // Binance başarısızsa fallback (ma değerini fiyat kabul et)
           const fallbackCoin: CryptoCoin = {
             id: item.coin_id,
             symbol: item.coin_symbol.toLowerCase(),
@@ -280,17 +275,14 @@ export async function getCoinsWithSwingIndicators(): Promise<Array<{
 
           return { coin: fallbackCoin, indicators: item };
         } catch (err) {
-          console.error(`[Indicators] ${item.coin_symbol} işlenirken kritik hata:`, err);
           return null;
         }
       })
     );
 
-    const finalResults = results.filter((r): r is { coin: CryptoCoin; indicators: SwingIndicators } => r !== null);
-    console.log(`[Indicators] İşlem tamamlandı. Toplam: ${finalResults.length} coin.`);
-    return finalResults;
+    return results.filter((r): r is { coin: CryptoCoin; indicators: SwingIndicators } => r !== null);
   } catch (error) {
-    console.error("[Indicators] Genel Hata:", error);
+    console.error("[Indicators] getCoinsWithSwingIndicators hatası:", error);
     return [];
   }
 }
