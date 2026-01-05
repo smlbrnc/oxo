@@ -5,25 +5,26 @@ import { saveSignal, getLatestSignal, compareSignals, SignalChange } from "@/lib
 import { queueAlert } from "@/lib/supabase/alerts";
 
 /**
- * Vercel Cron Job: Her 15 dakikada bir tüm coinler için signal hesapla
+ * External Cron Job (Cron-job.org vb.): Tüm coinler için signal hesapla
  * 
- * Vercel cron job tarafından otomatik çağrılır.
- * Authentication: Vercel cron secret kontrolü (opsiyonel)
+ * Güvenlik için Authorization header kontrolü yapılır.
  */
 export async function GET(request: NextRequest) {
   try {
-    // Vercel cron job authentication (opsiyonel - production'da açılabilir)
+    // API Güvenlik Kontrolü
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
     
+    // Eğer CRON_SECRET tanımlıysa kontrol et, tanımlı değilse (development) geç
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      console.warn("[Cron] Yetkisiz erişim denemesi!");
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    console.log("[Cron] Signal hesaplama başladı:", new Date().toISOString());
+    console.log("[Cron] Signal hesaplama tetiklendi:", new Date().toISOString());
 
     // Tüm coinler ve indicators'ları getir
     const coinsWithIndicators = await getCoinsWithSwingIndicators();

@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/calculate-signals",
-      "schedule": "*/15 * * * *"
-    }
-  ]
-}
